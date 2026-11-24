@@ -24,6 +24,12 @@ describe('runTurn', () => {
     expect(r.revealed).toEqual([])
   })
 
+  it('asks which examination for a too-broad request, revealing nothing', async () => {
+    const model = fakeModel({ classify: async () => ({ intent: 'too_broad', finding_ids: ['va_left', 'iop_left'] }) })
+    const r = await runTurn(viva, { stage: 'findings', utterance: 'Is there anything wrong with the left eye?' }, model)
+    expect(r).toMatchObject({ spoken: PROMPTS.tooBroad, revealed: [], nextStage: 'findings' })
+  })
+
   it('moves to the diagnosis stage when the trainee is ready', async () => {
     const model = fakeModel({ classify: async () => ({ intent: 'ready_to_answer', finding_ids: [] }) })
     const r = await runTurn(viva, { stage: 'findings', utterance: "I'm ready to give my diagnosis" }, model)

@@ -40,6 +40,19 @@ describe('Check 2: unavailable finding', () => {
   })
 })
 
+describe('Too-broad requests', () => {
+  it('"Is there anything wrong with the left eye?" -> asks which examination, reveals nothing', async () => {
+    const r = await ask('Is there anything wrong with the left eye?')
+    console.log('[too broad]', r.spoken)
+    expect(r.revealed).toEqual([])
+  })
+
+  it('"Pressures, pupils and gonioscopy in both eyes" is still specific', async () => {
+    const r = await ask('Pressures, pupils and gonioscopy in both eyes')
+    expect(r.revealed.map((f) => f.id).sort()).toEqual(['gonio_left', 'gonio_right', 'iop_left', 'iop_right', 'pupil_left', 'pupil_right'])
+  })
+})
+
 describe('Follow-on requests use the previous request', () => {
   it('"And what about the left eye?" after right gonioscopy -> left gonioscopy', async () => {
     const r = await runTurn(

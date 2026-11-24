@@ -10,7 +10,7 @@ import type { CaseFile, RevealedFinding } from '../case/types'
  */
 export type Stage = 'findings' | 'diagnosis' | 'follow_up' | 'complete'
 
-export type Intent = 'finding_request' | 'ready_to_answer' | 'other'
+export type Intent = 'finding_request' | 'too_broad' | 'ready_to_answer' | 'other'
 
 export interface Classification {
   intent: Intent
@@ -52,7 +52,8 @@ export interface TurnResult {
 export const PROMPTS = {
   didntCatch: "Sorry, I didn't catch that. Could you say it again?",
   askForAnswer: "Go ahead. What's your diagnosis, and what's your immediate management?",
-  steer: "You can ask me for any examination findings, or tell me you're ready to give your diagnosis.",
+  steer: "The history is on screen. Ask me for an examination finding, or tell me you're ready to give your diagnosis.",
+  tooBroad: 'Which examination would you like? For example, the visual acuity, the pressure, or the pupils.',
   closing: "Thank you, that's the end of the viva. I'll put together a revision point for you.",
 }
 
@@ -72,6 +73,11 @@ export async function runTurn(viva: CaseFile, input: TurnInput, model: ExaminerM
       const { intent, finding_ids } = await model.classify(utterance, input.previous)
       if (intent === 'ready_to_answer') {
         return { spoken: PROMPTS.askForAnswer, revealed: [], nextStage: 'diagnosis', counted: true }
+      }
+      // "Is there anything wrong with the left eye?" would reveal the whole examination at once;
+      // asking for findings one by one is the skill being tested, so ask which examination.
+      if (intent === 'too_broad') {
+        return { spoken: PROMPTS.tooBroad, revealed: [], nextStage: 'findings', counted: true }
       }
       if (intent === 'other' && finding_ids.length === 0) {
         return { spoken: PROMPTS.steer, revealed: [], nextStage: 'findings', counted: true }

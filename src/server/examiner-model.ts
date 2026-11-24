@@ -20,7 +20,7 @@ function findingCatalogue(viva: CaseFile): string {
 }
 
 const ClassificationSchema = z.object({
-  intent: z.enum(['finding_request', 'ready_to_answer', 'other']),
+  intent: z.enum(['finding_request', 'too_broad', 'ready_to_answer', 'other']),
   finding_ids: z.array(z.string()),
 })
 
@@ -31,7 +31,8 @@ Findings in this case (id | eye | label | method):
 ${findingCatalogue(viva)}
 
 Return:
-- intent "finding_request" when they ask for any examination finding or test result, even one not in the list.
+- intent "finding_request" when they ask for any specific examination finding or test result, even one not in the list. Asking for one or a few named examinations is specific ("pressures, pupils and gonioscopy in both eyes" names three).
+- intent "too_broad" when they ask for everything or an unspecified examination without naming what ("is there anything wrong with the left eye?", "examine the eye", "give me all the findings", "what else is abnormal?"). Return finding_ids [] for this.
 - intent "ready_to_answer" when they say they are ready to give their diagnosis or management, or start giving it.
 - intent "other" for anything else (greetings, questions about the viva, history questions).
 - finding_ids: every id that matches what they asked for. Respect the eye: "right IOP" is only iop_right. If no eye is given, or they say "both", include every eye that has the finding. Abbreviations count (IOP = intraocular pressure, VA = visual acuity, RAPD, U&E, AC = anterior chamber). Return [] when nothing in the list matches; never invent ids.
