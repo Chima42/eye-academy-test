@@ -16,7 +16,7 @@ function key(): string {
 
 /** Terms trainees say in their answers that aren't finding labels (from the reference note). */
 const ANSWER_TERMS = [
-  'Van Herick', 'IOP', 'RAPD', 'angle closure', 'iridotomy', 'iridoplasty', 'pilocarpine',
+  'pupils', 'pressures', 'Van Herick', 'IOP', 'RAPD', 'angle closure', 'iridotomy', 'iridoplasty', 'pilocarpine',
   'acetazolamide', 'timolol', 'apraclonidine', 'brimonidine', 'mannitol', 'prednisolone',
   'chlorphenamine', 'sulfonamide', 'paracentesis', 'ciliary flush', 'fellow eye',
 ]
@@ -26,10 +26,12 @@ const ANSWER_TERMS = [
  * labels, so editing the case updates them. Deepgram advises 20-50 terms (500-token cap).
  */
 export function keyterms(viva: CaseFile): string[] {
+  // "Optic disc and fundus" -> "Optic disc", "fundus"; "Axial length (biometry)" -> "Axial length", "biometry".
+  // Single words matter: a trainee says "right fundus", not the full label ("Rite Thunder" in testing).
   const fromLabels = viva.findings.flatMap((f) => {
     const inParens = f.label.match(/\(([^)]+)\)/)?.[1]
     const base = f.label.replace(/\s*\([^)]*\)/, '')
-    return inParens ? [base, inParens] : [base]
+    return [...base.split(/\s+and\s+/i), ...(inParens ? [inParens] : [])]
   })
   return [...new Set([...fromLabels, ...ANSWER_TERMS])].slice(0, 50)
 }

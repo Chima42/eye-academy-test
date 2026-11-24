@@ -53,6 +53,26 @@ describe('Too-broad requests', () => {
   })
 })
 
+describe('Never guess (from manual testing)', () => {
+  // Phrasings that broke in the app: a mishearing mapped to the wrong finding, a missing test
+  // routed to the history prompt, and a different measurement matched to the cornea finding.
+  it.each([
+    ['Rite Thunder', 'other'],
+    ['What are her visual fields?', 'finding_request'],
+    ['Corneal thickness', 'finding_request'],
+    ['HbA1c', 'finding_request'],
+  ])('"%s" reveals nothing (intent %s)', async (utterance) => {
+    const r = await ask(utterance)
+    console.log(`[never guess] ${utterance} ->`, r.spoken)
+    expect(r.revealed).toEqual([])
+  })
+
+  it('"What are her visual fields?" says not available, not the history prompt', async () => {
+    const r = await ask('What are her visual fields?')
+    expect(r.spoken).toBe("That isn't available for this case.")
+  })
+})
+
 describe('Follow-on requests use the previous request', () => {
   it('"And what about the left eye?" after right gonioscopy -> left gonioscopy', async () => {
     const r = await runTurn(
