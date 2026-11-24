@@ -1,0 +1,25 @@
+# Agent / local tooling
+/.agents
+/.claude
+/notes
+
+# Secrets
+.env
+.env*.local
+*.local
+
+# Build and tooling output
+node_modules
+.DS_Store
+dist
+dist-ssr
+.nitro
+.tanstack
+.wrangler
+.output
+.vinxi
+__unconfig*
+
+# Firebase emulator
+.emulator-data
+*-debug.log
