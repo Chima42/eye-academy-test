@@ -24,6 +24,7 @@ export function useViva(uid: string, attemptId: string) {
   const [status, setStatus] = useState<TurnStatus>('not_started')
   const [error, setError] = useState<string | null>(null)
   const [micReady, setMicReady] = useState(false)
+  const [notFound, setNotFound] = useState(false)
   const recorder = useRef(new Recorder())
   const attemptRef = useRef<Attempt | null>(null)
 
@@ -37,11 +38,15 @@ export function useViva(uid: string, attemptId: string) {
   )
 
   useEffect(() => {
-    getAttempt(uid, attemptId).then((a) => {
-      attemptRef.current = a
-      setAttempt(a)
-      if (a?.stage === 'complete') setStatus('idle')
-    })
+    getAttempt(uid, attemptId)
+      .then((a) => {
+        // Attempts are read from the signed-in user's own path, so someone else's id is simply not found.
+        if (!a) return setNotFound(true)
+        attemptRef.current = a
+        setAttempt(a)
+        if (a.stage === 'complete') setStatus('idle')
+      })
+      .catch(() => setNotFound(true))
     const rec = recorder.current
     return () => {
       rec.dispose()
@@ -223,5 +228,5 @@ export function useViva(uid: string, attemptId: string) {
     setStatus('idle')
   }, [say, status])
 
-  return { attempt, status, error, micReady, begin, startTalking, stopTalking, submitText, moveToDiagnosis, repeatLast }
+  return { attempt, notFound, status, error, micReady, begin, startTalking, stopTalking, submitText, moveToDiagnosis, repeatLast }
 }

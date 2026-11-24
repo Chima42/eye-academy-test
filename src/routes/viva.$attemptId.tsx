@@ -78,6 +78,15 @@ function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
     }
   }, [v])
 
+  if (v.notFound) {
+    return (
+      <main className="mx-auto mt-16 max-w-md space-y-3 rounded-xl bg-white p-6 text-center shadow">
+        <h1 className="text-xl font-semibold">Attempt not found</h1>
+        <p className="text-sm text-slate-600">It doesn’t exist, or it belongs to another account.</p>
+        <Link to="/" className="inline-block rounded bg-indigo-900 px-4 py-2 text-white">Your attempts</Link>
+      </main>
+    )
+  }
   if (!attempt) return <p className="p-8">Loading attempt…</p>
 
   const complete = attempt.stage === 'complete'
