@@ -64,6 +64,8 @@ Data is saved to `.emulator-data/` when you stop with **Ctrl+C**. If the process
 - **Saved attempts.** The attempt is saved after every turn. After a refresh it reopens with its transcript and
   revealed findings, and an unfinished viva carries on without the examiner repeating itself. Attempts are private
   to their owner. Another user's attempt URL shows "Attempt not found". A load failure (e.g. emulators not running) says so instead.
+  The attempts list separates in-progress vivas (with Continue) from completed ones, which show what to revise and
+  can expand the full revision point in place.
 - **Revision point.** After the viva, one revision point with a page number and a word-for-word excerpt
   from the reference note, or a clear "no support found".
 - **Recovery.** A text box takes the place of voice (noisy room, no mic). An empty transcript gets "Sorry, I didn't
