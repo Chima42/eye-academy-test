@@ -83,6 +83,10 @@ Data is saved to `.emulator-data/` when you stop with **Ctrl+C**. If the process
 - The voice is Deepgram's default US voice (`aura-2-thalia-en`). It can be changed with `DEEPGRAM_VOICE`.
 - Tested in Chrome on macOS. Audio streaming uses Media Source Extensions, with a plain `<audio>` fallback where
   MP3 streaming isn't supported (e.g. some Safari versions). The fallback is slower and hasn't been tested.
+- **UI polish I'd do next.** I kept the interface functional rather than finished:
+  - Consistent primary and secondary button styles. At the moment each button is styled where it's used, so similar
+    actions don't always look alike.
+  - Layout tweaks: spacing and hierarchy across the three panes, and the attempts list.
 
 ## How a turn works
 
