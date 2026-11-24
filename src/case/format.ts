@@ -41,6 +41,17 @@ export function displayText(finding: Finding): string {
   return `${parts.join(' · ')} · ${value}${method}`
 }
 
+const ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+  'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen']
+const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety']
+
+/** 0-99 in words ("36" -> "thirty-six"); larger numbers stay as digits. */
+export function numberToWords(n: number): string {
+  if (!Number.isInteger(n) || n < 0 || n > 99) return String(n)
+  if (n < 20) return ONES[n]
+  return n % 10 === 0 ? TENS[n / 10] : `${TENS[Math.floor(n / 10)]}-${ONES[n % 10]}`
+}
+
 /**
  * Expansions for text-to-speech. Only these patterns change; anything else is
  * spoken exactly as displayed, so voice and screen can't drift apart silently.
@@ -48,8 +59,10 @@ export function displayText(finding: Finding): string {
 function expandForSpeech(text: string, unit: string | null): string {
   let out = text
   if (unit === 'Snellen') {
-    // "6/36 Snellen" -> "6 36" (read as "six thirty-six")
-    out = out.replace(/(\d+)\/(\d+)\s*Snellen/g, '$1 $2')
+    // Words, not digits: the voice read "6 36" as "six three six".
+    out = out.replace(/(\d+)\/(\d+)\s*Snellen/g, (_m, top: string, bottom: string) =>
+      `${numberToWords(Number(top))} ${numberToWords(Number(bottom))} Snellen`,
+    )
   }
   out = out
     .replace(/(\d+)\/(\d+)\s*mmHg/g, '$1 over $2 mmHg') // blood pressure
@@ -89,18 +102,27 @@ export function revealedFinding(finding: Finding): RevealedFinding {
   }
 }
 
+/** The model names the missing test, so keep only plain words and cap the length. */
+function cleanTestName(name: string): string {
+  return name.replace(/[^\p{L}\p{N}\s&/-]/gu, '').trim().slice(0, 60)
+}
+
+const notInCaseSentence = (name: string) => `${name.charAt(0).toUpperCase()}${name.slice(1)}: not available for this case.`
+
 /**
- * Build the examiner's reply from finding ids chosen by the classifier.
- * Ids that aren't in the case are ignored, so a made-up id can never reveal anything.
+ * Build the examiner's reply from finding ids chosen by the classifier, plus a sentence for each
+ * requested test the case doesn't list. Ids that aren't in the case are ignored, so a made-up id
+ * can never reveal anything.
  */
-export function replyForFindings(findings: Finding[], ids: string[]): FindingsReply {
+export function replyForFindings(findings: Finding[], ids: string[], notInCase: string[] = []): FindingsReply {
   const byId = new Map(findings.map((f) => [f.id, f]))
   const matched = [...new Set(ids)]
     .map((id) => byId.get(id))
     .filter((f): f is Finding => f !== undefined)
-  if (matched.length === 0) return { revealed: [], spoken: NOT_IN_CASE }
+  const missing = notInCase.map(cleanTestName).filter(Boolean).map(notInCaseSentence)
+  if (matched.length === 0 && missing.length === 0) return { revealed: [], spoken: NOT_IN_CASE }
   return {
     revealed: matched.map(revealedFinding),
-    spoken: matched.map(spokenText).join(' '),
+    spoken: [...matched.map(spokenText), ...missing].join(' '),
   }
 }

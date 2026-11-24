@@ -13,6 +13,7 @@ import { runTurn } from '../src/viva/engine'
 
 const model = examinerModel(viva)
 const ask = (utterance: string) => runTurn(viva, { stage: 'findings', utterance }, model)
+const NOT_AVAILABLE = /not available for this case|isn't available for this case/
 
 describe('Check 1: available finding', () => {
   it('"What\'s the pressure in the right eye?" -> right IOP 58 mmHg', async () => {
@@ -37,7 +38,7 @@ describe('Check 2: unavailable finding', () => {
     const r = await ask('What are the visual fields like?')
     console.log('[check 2b] spoken:', r.spoken)
     expect(r.revealed).toEqual([])
-    expect(r.spoken).toBe("That isn't available for this case.")
+    expect(r.spoken).toMatch(NOT_AVAILABLE)
   })
 })
 
@@ -78,7 +79,7 @@ describe('Never guess (from manual testing)', () => {
 
   it('"What are her visual fields?" says not available, not the history prompt', async () => {
     const r = await ask('What are her visual fields?')
-    expect(r.spoken).toBe("That isn't available for this case.")
+    expect(r.spoken).toMatch(NOT_AVAILABLE)
   })
 })
 
@@ -109,6 +110,42 @@ describe('A diagnosis given during the findings stage', () => {
   })
 })
 
+describe('Mixed request: a finding plus a test the case does not list', () => {
+  it('"Pressure and visual fields" reads the pressures and says visual fields is not available', async () => {
+    const r = await ask("What's the pressure and the visual fields?")
+    console.log('[mixed]', r.spoken)
+    expect(r.revealed.map((f) => f.id).sort()).toEqual(['iop_left', 'iop_right'])
+    expect(r.spoken).toMatch(/visual fields: not available for this case/i)
+  })
+})
+
+describe('Answer stages', () => {
+  const FOLLOW_UP = 'Why might you treat the left eye as well?'
+  const answerTurn = (stage: 'diagnosis' | 'follow_up', utterance: string) =>
+    runTurn(viva, { stage, utterance, followUpQuestion: FOLLOW_UP }, model)
+
+  it('"Sorry, can you repeat the question?" repeats the follow-up and does not end the viva', async () => {
+    const r = await answerTurn('follow_up', 'Sorry, can you repeat the question?')
+    expect(r).toMatchObject({ spoken: FOLLOW_UP, nextStage: 'follow_up' })
+  })
+
+  it('a findings request during the diagnosis stage is answered, not taken as the diagnosis', async () => {
+    const r = await answerTurn('diagnosis', "Before I answer, what's the pressure in the left eye?")
+    expect(r).toMatchObject({ nextStage: 'diagnosis' })
+    expect(r.revealed.map((f) => f.id)).toEqual(['iop_left'])
+  })
+
+  it('an answer that mentions a finding is still the answer', async () => {
+    const r = await answerTurn('diagnosis', "Acute angle closure. I'd lower the pressure with timolol and apraclonidine.")
+    expect(r.nextStage).toBe('follow_up')
+  })
+
+  it('"I don\'t know" is an answer', async () => {
+    const r = await answerTurn('follow_up', "I don't know")
+    expect(r.nextStage).toBe('complete')
+  })
+})
+
 describe('Check 3: the citation supports the revision point', () => {
   // A good answer that covers every key point except treating the fellow (left) eye.
   const input = {
@@ -129,8 +166,9 @@ describe('Check 3: the citation supports the revision point', () => {
     expect(r.gap.toLowerCase()).toMatch(/fellow|left|other eye|both eyes/)
     // Retrieved pages recorded; the key passage (p6, prophylactic LPI in the fellow eye) is among them.
     expect(r.retrieved.map((p) => p.chunkId)).toContain('p6-8')
-    // The cited passage is one that actually supports treating the fellow eye.
-    expect(['p6-8', 'p7-2', 'p5-13', 'p6-7']).toContain(r.chunkId)
+    // The cited passage supports treating the fellow eye: prophylactic LPI in the fellow eye (p6),
+    // pilocarpine and prompt iridotomy for the other eye (p5), LPI after APAC "in both eyes" (p7).
+    expect(['p6-8', 'p5-13', 'p7-2']).toContain(r.chunkId)
     // Verbatim: the excerpt shown is the note's own text, and the cited page is where it's printed.
     const cited = note.chunks.find((c) => c.id === r.chunkId)!
     expect(cited.text).toContain(r.excerpt)

@@ -36,8 +36,8 @@ Data is saved to `.emulator-data/` when you stop with **Ctrl+C**. If the process
 
 | Command | Purpose |
 |---|---|
-| `npm test` | Offline unit tests (57) |
-| `npm run test:checks` | The three checks, plus regressions found in manual testing, against the real model (17) |
+| `npm test` | Offline unit tests (77) |
+| `npm run test:checks` | The three checks, plus regressions found in manual testing, against the real model (22) |
 | `npm run check:privacy` | Two-user Firestore rules check (with `npm run dev` running) |
 | `npm run prepare:note` | Rebuild `data/note-chunks.json` from the PDF |
 
@@ -50,7 +50,8 @@ Data is saved to `.emulator-data/` when you stop with **Ctrl+C**. If the process
   collapses to a slim rail.
 - **Voice findings.** Hold the button (or Space) and ask for findings. The examiner reads each finding back
   and shows it with the correct eye, value and units. A listed but unavailable finding is read back with
-  its reason. A finding the case doesn't list gets "That isn't available for this case". Follow-ons work
+  its reason. A test the case doesn't list is named as not available ("Visual fields: not available for this case"),
+  including when it's asked for alongside findings that are listed. Follow-ons work
   ("right gonioscopy" → "and the left?"). A request that names nothing ("is there anything wrong with the left eye?")
   gets "Which examination would you like?" rather than revealing the whole examination. An unclear or misheard
   request reveals nothing, so the trainee is asked again.
@@ -59,8 +60,9 @@ Data is saved to `.emulator-data/` when you stop with **Ctrl+C**. If the process
 - **Follow-up.** After the diagnosis (button, or say "I'm ready to give my diagnosis"), the examiner asks
   **one** spoken follow-up that responds to the trainee's answer, as the brief asks. I chose to aim it at the most important
   key point they missed or got wrong. A diagnosis given without announcing it ("I think this is angle closure, I'd give…")
-  is taken as the answer rather than asked for again. The trainee's answer to the follow-up ends the viva. Anything wrong
-  in that answer is picked up by the revision point, not by a second question.
+  is taken as the answer rather than asked for again. While answering, "can you repeat the question?" repeats it, and an
+  explicit request for a finding is answered, so neither is mistaken for the answer. The trainee's answer to the
+  follow-up ends the viva. Anything wrong in that answer is picked up by the revision point, not by a second question.
 - **Saved attempts.** The attempt is saved after every turn. After a refresh it reopens with its transcript and
   revealed findings, and an unfinished viva carries on without the examiner repeating itself. Attempts are private
   to their owner. Another user's attempt URL shows "Attempt not found". A load failure (e.g. emulators not running) says so instead.
@@ -88,6 +90,19 @@ Data is saved to `.emulator-data/` when you stop with **Ctrl+C**. If the process
     actions don't always look alike.
   - Layout tweaks: spacing and hierarchy across the three panes, and the attempts list.
 
+**Beyond the brief (choices to discuss)**
+
+These go past what the brief asks for. They're kept small, and listed here so each is a deliberate, visible choice:
+- **"Which examination would you like?"** for a request that names nothing ("is there anything wrong with the left eye?").
+  The brief only says the trainee can ask for findings. This withholds findings until one is named, because asking
+  systematically is the skill a viva tests.
+- **Follow-on requests** ("and the left?") resolve against the previous request.
+- **Recovery aids:** a text box for noisy rooms or no mic, "Repeat last", and Space as push-to-talk.
+- **"Last voice turn: N ms"** on screen. This is a measuring aid for the brief's latency question, not something a trainee needs.
+- **The retrieved passages under each revision point,** distractors included. This is evidence for the citation check; a trainee-facing version might hide it.
+- **The attempts list** grouped into in progress and completed, with the revision point expandable in place. Also the
+  collapsible findings panel, remembered per browser.
+
 ## How a turn works
 
 ```
@@ -100,8 +115,10 @@ hold to speak ──► /api/transcribe ──► examinerTurn (server function)
 The model **never sees finding values**. It only chooses ids from a list of id, eye and label. The reply
 text is built by code from `data/case-EA-VIVA-001.json`, so it can't invent or change a value. If the
 JSON changes, the app reflects the change with no prompt to update. Display text is the JSON verbatim. Spoken text puts
-the eye first and expands only a fixed allowlist (mmHg → "millimetres of mercury", 6/36 → "6 36",
-DS → "dioptres sphere", 1/4 → "a quarter"). Units are appended only to bare numbers. This avoids the
+the eye first and expands only a fixed list: mmHg → "millimetres of mercury", mm → "millimetres",
+6/36 Snellen → "six thirty-six Snellen" (in words: the voice read the digits "6 36" as "six three six"),
+168/94 mmHg → "168 over 94", DS → "dioptres sphere", +3.50 → "plus 3.50", 1/4 → "a quarter". Units are
+appended only to bare numbers, and tests check every bare measurement is spoken with its unit. This avoids the
 data's traps: the pupil "5 mm" already has its unit, axial length has a unit but no value, and refraction is descriptive.
 
 ## Model choice and responsiveness
@@ -167,7 +184,7 @@ Full expected vs observed tables are in [CHECKS.md](CHECKS.md). Summary:
 |---|---|---|
 | Available finding | "What's the pressure in the right eye?" | `iop_right`, "58 mmHg", right eye: pass |
 | Unavailable finding | "Can I see the right angle on gonioscopy?" | Not available, "No view: corneal oedema", no value: pass |
-| Citation supports the point | Answer that omits treating the fellow eye | Retrieved pages 7, 7, 10, 6, 4; cited page 6 (`p6-8`), excerpt verbatim: pass |
+| Citation supports the point | Answer that omits treating the fellow eye | Final run: retrieved pages 7, 7, 10, 4, 6; cited page 6 (`p6-8`), excerpt verbatim: pass |
 
 ## Handover
 

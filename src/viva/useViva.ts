@@ -110,7 +110,13 @@ export function useViva(uid: string, attemptId: string) {
       try {
         const llmStart = performance.now()
         const result = await examinerTurn({
-          data: { stage: a.stage, utterance: text, diagnosisAnswer: a.diagnosisAnswer, previous: previousRequest(a) },
+          data: {
+            stage: a.stage,
+            utterance: text,
+            diagnosisAnswer: a.diagnosisAnswer,
+            followUpQuestion: a.followUpQuestion,
+            previous: previousRequest(a),
+          },
         })
         const llmMs = performance.now() - llmStart
         const now = Date.now()

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { viva } from './case'
-import { NOT_IN_CASE, displayText, replyForFindings, spokenText } from './format'
+import { NOT_IN_CASE, displayText, numberToWords, replyForFindings, spokenText } from './format'
 import type { Finding } from './types'
 
 const finding = (id: string): Finding => {
@@ -20,10 +20,10 @@ describe('available findings keep eye, value and units', () => {
     expect(spokenText(finding('iop_left'))).toBe('Left eye, intraocular pressure: 18 millimetres of mercury.')
   })
 
-  it('Snellen acuity is spoken as "six thirty-six"', () => {
+  it('Snellen acuity is spoken as "six thirty-six" with its unit', () => {
     const f = finding('va_right')
     expect(displayText(f)).toContain('6/36 Snellen')
-    expect(spokenText(f)).toBe('Right eye, visual acuity: 6 36.')
+    expect(spokenText(f)).toBe('Right eye, visual acuity: six thirty-six Snellen.')
   })
 
   it('blood pressure has no eye and is spoken as "over"', () => {
@@ -90,10 +90,37 @@ describe('every finding in the case', () => {
       // Every number in the value is also spoken, except where an allowlisted
       // expansion turns it into words ("1/4" -> "a quarter").
       const numbers = String(f.value).replace(/\b1\/4\b/g, '').match(/\d+(\.\d+)?/g) ?? []
-      for (const n of numbers) expect(spoken).toContain(n)
+      for (const n of numbers) expect([n, numberToWords(Number(n))].some((form) => spoken.includes(form))).toBe(true)
     } else {
       expect(spoken).toContain('not available')
     }
+  })
+})
+
+describe('numberToWords', () => {
+  it.each([
+    [6, 'six'],
+    [9, 'nine'],
+    [18, 'eighteen'],
+    [36, 'thirty-six'],
+    [60, 'sixty'],
+  ])('%i -> %s', (n, words) => {
+    expect(numberToWords(n)).toBe(words)
+  })
+
+  it('leaves numbers above 99 as digits', () => {
+    expect(numberToWords(168)).toBe('168')
+  })
+})
+
+describe('every bare measurement speaks its unit', () => {
+  const SPOKEN_UNIT: Record<string, string> = { mmHg: 'millimetres of mercury', Snellen: 'Snellen' }
+  const bareMeasurements = viva.findings.filter(
+    (f) => f.available && f.unit && f.value !== null && /^[\d.+\-/ ]+$/.test(String(f.value)),
+  )
+
+  it.each(bareMeasurements.map((f) => [f.id, f] as const))('%s', (_id, f) => {
+    expect(spokenText(f)).toContain(SPOKEN_UNIT[f.unit!] ?? f.unit)
   })
 })
 
@@ -108,6 +135,15 @@ describe('replyForFindings', () => {
 
   it('says "not available for this case" when nothing matched', () => {
     expect(replyForFindings(viva.findings, [])).toEqual({ revealed: [], spoken: NOT_IN_CASE })
+  })
+
+  it('names a requested test the case does not list, alongside the findings', () => {
+    const reply = replyForFindings(viva.findings, ['iop_right'], ['visual fields'])
+    expect(reply.spoken).toBe('Right eye, intraocular pressure: 58 millimetres of mercury. Visual fields: not available for this case.')
+  })
+
+  it('strips anything but plain words from a test name before speaking it', () => {
+    expect(replyForFindings(viva.findings, [], ['<visual fields>!']).spoken).toBe('Visual fields: not available for this case.')
   })
 
   it('ignores ids that are not in the case', () => {

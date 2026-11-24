@@ -10,11 +10,13 @@ import type { CaseFile, RevealedFinding } from '../case/types'
  */
 export type Stage = 'findings' | 'diagnosis' | 'follow_up' | 'complete'
 
-export type Intent = 'finding_request' | 'too_broad' | 'ready_to_answer' | 'gives_answer' | 'other'
+export type Intent = 'finding_request' | 'too_broad' | 'ready_to_answer' | 'gives_answer' | 'repeat_request' | 'other'
 
 export interface Classification {
   intent: Intent
   finding_ids: string[]
+  /** Tests asked for that the case doesn't list ("visual fields"), so the reply can say so. */
+  not_in_case: string[]
 }
 
 /** The trainee's previous findings request, so "what about the left eye?" can be understood. */
@@ -23,9 +25,14 @@ export interface PreviousRequest {
   findingIds: string[]
 }
 
+export interface ClassifyContext {
+  stage: Stage
+  previous?: PreviousRequest
+}
+
 /** The LLM calls the engine needs. Injected so tests can use fakes or the real model. */
 export interface ExaminerModel {
-  classify(utterance: string, previous?: PreviousRequest): Promise<Classification>
+  classify(utterance: string, context: ClassifyContext): Promise<Classification>
   writeFollowUp(diagnosisAnswer: string): Promise<string>
 }
 
@@ -34,6 +41,8 @@ export interface TurnInput {
   utterance: string
   /** The trainee's diagnosis answer; needed when moving into the follow-up. */
   diagnosisAnswer?: string
+  /** The follow-up already asked, so it can be repeated on request. */
+  followUpQuestion?: string
   previous?: PreviousRequest
 }
 
@@ -69,34 +78,43 @@ export async function runTurn(viva: CaseFile, input: TurnInput, model: ExaminerM
   if (isEmpty(utterance)) {
     return { spoken: PROMPTS.didntCatch, revealed: [], nextStage: stage, counted: false }
   }
-
-  switch (stage) {
-    case 'findings': {
-      const { intent, finding_ids } = await model.classify(utterance, input.previous)
-      if (intent === 'ready_to_answer') {
-        return { spoken: PROMPTS.askForAnswer, revealed: [], nextStage: 'diagnosis', counted: true }
-      }
-      // They gave the diagnosis without announcing it first: take it as their answer, don't ask again.
-      if (intent === 'gives_answer') return answerDiagnosis(utterance, model)
-      // "Is there anything wrong with the left eye?" would reveal the whole examination at once;
-      // asking for findings one by one is the skill being tested, so ask which examination.
-      if (intent === 'too_broad') {
-        return { spoken: PROMPTS.tooBroad, revealed: [], nextStage: 'findings', counted: true }
-      }
-      if (intent === 'other' && finding_ids.length === 0) {
-        return { spoken: PROMPTS.steer, revealed: [], nextStage: 'findings', counted: true }
-      }
-      // Code, not the model, builds the reply from the case JSON.
-      const reply = replyForFindings(viva.findings, finding_ids)
-      return { spoken: reply.spoken, revealed: reply.revealed, nextStage: 'findings', counted: true }
-    }
-    case 'diagnosis':
-      return answerDiagnosis(utterance, model)
-    case 'follow_up':
-      return { spoken: PROMPTS.closing, revealed: [], nextStage: 'complete', counted: true }
-    case 'complete':
-      return { spoken: PROMPTS.closing, revealed: [], nextStage: 'complete', counted: false }
+  if (stage === 'complete') {
+    return { spoken: PROMPTS.closing, revealed: [], nextStage: 'complete', counted: false }
   }
+
+  const classification = await model.classify(utterance, { stage, previous: input.previous })
+  const { intent } = classification
+  const stay = (spoken: string): TurnResult => ({ spoken, revealed: [], nextStage: stage, counted: true })
+
+  // In every stage, an explicit request for a finding is answered from the case JSON.
+  if (intent === 'finding_request') return findingsReply(viva, classification, stage)
+
+  if (stage === 'findings') {
+    if (intent === 'ready_to_answer') {
+      return { spoken: PROMPTS.askForAnswer, revealed: [], nextStage: 'diagnosis', counted: true }
+    }
+    // They gave the diagnosis without announcing it first: take it as their answer, don't ask again.
+    if (intent === 'gives_answer') return answerDiagnosis(utterance, model)
+    // "Is there anything wrong with the left eye?" would reveal the whole examination at once;
+    // asking for findings one by one is the skill being tested, so ask which examination.
+    if (intent === 'too_broad') return stay(PROMPTS.tooBroad)
+    if (classification.finding_ids.length > 0) return findingsReply(viva, classification, stage)
+    return stay(PROMPTS.steer)
+  }
+
+  // Answer stages: "can you repeat the question?" is not an answer.
+  if (stage === 'diagnosis') {
+    if (intent === 'repeat_request') return stay(PROMPTS.askForAnswer)
+    return answerDiagnosis(utterance, model)
+  }
+  if (intent === 'repeat_request') return stay(input.followUpQuestion ?? PROMPTS.askForAnswer)
+  return { spoken: PROMPTS.closing, revealed: [], nextStage: 'complete', counted: true }
+}
+
+/** Code, not the model, builds the reply from the case JSON. */
+function findingsReply(viva: CaseFile, classification: Classification, stage: Stage): TurnResult {
+  const reply = replyForFindings(viva.findings, classification.finding_ids, classification.not_in_case)
+  return { spoken: reply.spoken, revealed: reply.revealed, nextStage: stage, counted: true }
 }
 
 /** The trainee's diagnosis and management: record it and ask the one follow-up. */
