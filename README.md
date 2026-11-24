@@ -27,6 +27,13 @@ Auth emulator. The Emulator UI is at http://localhost:4000. Data persists betwee
 The emulators need Java 21. `npm run dev` uses `JAVA_HOME` if it is set. Otherwise it looks for a JDK 21+
 unpacked under `~/.local/share`.
 
+**First run is slower.** Two one-off downloads happen automatically:
+- `npm run dev` downloads the Firebase emulators the first time (about 140 MB, mostly the Firestore emulator).
+- The first revision point downloads the local embedding model (`bge-small-en-v1.5`, about 130 MB) and caches it
+  under `node_modules`. That first revision point takes noticeably longer. After that it's quick.
+
+Data is saved to `.emulator-data/` when you stop with **Ctrl+C**. If the process is killed instead, that session's data isn't kept.
+
 | Command | Purpose |
 |---|---|
 | `npm test` | Offline unit tests (57) |

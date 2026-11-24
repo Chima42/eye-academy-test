@@ -2,7 +2,7 @@ import { pipeline, type FeatureExtractionPipeline } from '@huggingface/transform
 
 /**
  * Local embeddings (no API key): BGE-small, 384 dimensions, run with transformers.js.
- * The model downloads once (~35 MB) and is cached. BGE expects queries to carry an instruction prefix.
+ * The model downloads once (~130 MB, full precision) and is cached. BGE expects queries to carry an instruction prefix.
  */
 export const EMBEDDING_MODEL = 'Xenova/bge-small-en-v1.5'
 const QUERY_PREFIX = 'Represent this sentence for searching relevant passages: '
