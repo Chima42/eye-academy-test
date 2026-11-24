@@ -87,6 +87,15 @@ function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
       </main>
     )
   }
+  if (v.loadFailed) {
+    return (
+      <main className="mx-auto mt-16 max-w-md space-y-3 rounded-xl bg-white p-6 text-center shadow">
+        <h1 className="text-xl font-semibold">Couldn’t load this attempt</h1>
+        <p className="text-sm text-slate-600">Check your connection (locally: that the Firebase emulators are running), then refresh.</p>
+        <Link to="/" className="inline-block rounded bg-indigo-900 px-4 py-2 text-white">Your attempts</Link>
+      </main>
+    )
+  }
   if (!attempt) return <p className="p-8">Loading attempt…</p>
 
   const complete = attempt.stage === 'complete'
@@ -132,8 +141,11 @@ function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
               <RevisionPanel revision={attempt.revision} />
             </div>
           )}
+          {complete && v.error && (
+            <p role="alert" className="mt-4 rounded bg-red-50 px-3 py-2 text-sm text-red-800">{v.error}</p>
+          )}
           {complete && !attempt.revision && status !== 'reviewing' && (
-            <button onClick={() => void v.begin()} className="mt-4 rounded bg-indigo-900 px-4 py-2 text-white">
+            <button onClick={() => void v.retryRevision()} className="mt-4 rounded bg-indigo-900 px-4 py-2 text-white">
               Generate revision point
             </button>
           )}

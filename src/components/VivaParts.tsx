@@ -105,7 +105,9 @@ export function RevisionPanel({ revision }: { revision: RevisionPoint }) {
           <p className="mb-3">{revision.point}</p>
           <blockquote className="border-l-4 border-indigo-400 bg-indigo-50 px-3 py-2 text-sm italic">
             “{revision.excerpt}”
-            <footer className="mt-1 not-italic font-medium">Reference note, page {revision.page}</footer>
+            <footer className="mt-1 not-italic font-medium">
+              Reference note, {(revision.pages?.length ?? 1) > 1 ? `pages ${revision.pages!.join('–')}` : `page ${revision.page}`}
+            </footer>
           </blockquote>
         </>
       ) : (

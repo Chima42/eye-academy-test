@@ -63,9 +63,10 @@ left eye. The pressure there is normal, so it isn't affected."
 **Result: pass.** The distractor pages (7 and 10 cover iridotomy in general) were retrieved but not cited.
 
 How "supported" is decided: the model must quote the chosen passage word for word. Code then
-checks the quote is in that retrieved passage (`locateExcerpt` in `src/note/chunk.ts`) and takes the
-cited page from where the quote is printed, not from the model. An unverifiable quote is shown
-to the trainee as "no support found".
+finds the quote in that retrieved passage (`locateExcerpt` in `src/note/chunk.ts`; only quote style, dashes,
+spacing and case may differ), shows the note's own text for it, and takes the cited page(s) from where that
+text is printed, not from the model. A quote that can't be found, or is over 50 words, is shown to the
+trainee as "no support found". The live test asserts the excerpt is the chunk's exact text and the page matches.
 
 Variant, no support in the note: the gap "Long-term control of her systemic hypertension".
 Expected: unsupported. Observed: `unsupported`, reason "None of the reference passages address
@@ -100,7 +101,7 @@ speech-to-text heard).
 
 ## Bugs found by manual testing, and fixed
 
-Deliberately trying to break it found these. Each is now a live check in `tests/checks.live.test.ts`.
+Deliberately trying to break it, and a code review against the brief, found these. Each is now a live check in `tests/checks.live.test.ts`.
 
 | Said | Was | Now |
 |---|---|---|
@@ -109,5 +110,7 @@ Deliberately trying to break it found these. Each is now a live check in `tests/
 | "Rite Thunder" (misheard "right fundus") | **Revealed the right IOP**, a guess | Nothing revealed; asked again. "fundus" added as a speech keyterm |
 | "What are her visual fields?" | History prompt (a regression from the previous fix) | "That isn't available for this case" |
 | "Corneal thickness" | Revealed the cornea descriptions | Not available |
+| "I think this is acute angle closure, I'd lie her flat…" during findings | Taken as "ready to answer", answer discarded, asked again | Taken as the diagnosis; examiner asks the follow-up |
+| "Pressures, pupils and gonioscopy in both eyes" | Sometimes added the RAPD to "pupils" | Only the named findings |
 
-Final live run: 13/13 checks pass. The four "never guess" phrasings passed 3 runs out of 3.
+Final live runs: 15/15 checks pass, three runs in a row.

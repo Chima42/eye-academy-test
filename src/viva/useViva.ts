@@ -25,6 +25,7 @@ export function useViva(uid: string, attemptId: string) {
   const [error, setError] = useState<string | null>(null)
   const [micReady, setMicReady] = useState(false)
   const [notFound, setNotFound] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
   const recorder = useRef(new Recorder())
   const attemptRef = useRef<Attempt | null>(null)
 
@@ -46,7 +47,7 @@ export function useViva(uid: string, attemptId: string) {
         setAttempt(a)
         if (a.stage === 'complete') setStatus('idle')
       })
-      .catch(() => setNotFound(true))
+      .catch(() => setLoadFailed(true)) // e.g. the Firestore emulator isn't running
     const rec = recorder.current
     return () => {
       rec.dispose()
@@ -86,7 +87,7 @@ export function useViva(uid: string, attemptId: string) {
         })
         await update({ ...a, revision })
       } catch {
-        setError('Could not generate the revision point. Try again from the attempts list.')
+        setError('Could not generate the revision point. Check your connection and press "Generate revision point" to try again.')
       }
     },
     [update],
@@ -121,7 +122,7 @@ export function useViva(uid: string, attemptId: string) {
           stage: result.nextStage,
           transcript: [...a.transcript, ...entries],
           revealed: mergeRevealed(a.revealed, result.revealed),
-          diagnosisAnswer: a.stage === 'diagnosis' && result.counted ? text : a.diagnosisAnswer,
+          diagnosisAnswer: result.diagnosisAnswer ?? a.diagnosisAnswer,
           followUpQuestion: result.followUpQuestion ?? a.followUpQuestion,
           followUpAnswer: a.stage === 'follow_up' && result.counted ? text : a.followUpAnswer,
         }
@@ -228,5 +229,14 @@ export function useViva(uid: string, attemptId: string) {
     setStatus('idle')
   }, [say, status])
 
-  return { attempt, notFound, status, error, micReady, begin, startTalking, stopTalking, submitText, moveToDiagnosis, repeatLast }
+  /** Retry the revision point after a failure. No mic needed, so it doesn't go through `begin`. */
+  const retryRevision = useCallback(async () => {
+    const a = attemptRef.current
+    if (!a) return
+    setError(null)
+    await reviewIfComplete(a)
+    setStatus('idle')
+  }, [reviewIfComplete])
+
+  return { attempt, notFound, loadFailed, retryRevision, status, error, micReady, begin, startTalking, stopTalking, submitText, moveToDiagnosis, repeatLast }
 }

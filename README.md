@@ -29,8 +29,8 @@ unpacked under `~/.local/share`.
 
 | Command | Purpose |
 |---|---|
-| `npm test` | Offline unit tests (55) |
-| `npm run test:checks` | The three checks, plus regressions found in manual testing, against the real model (13) |
+| `npm test` | Offline unit tests (57) |
+| `npm run test:checks` | The three checks, plus regressions found in manual testing, against the real model (15) |
 | `npm run check:privacy` | Two-user Firestore rules check (with `npm run dev` running) |
 | `npm run prepare:note` | Rebuild `data/note-chunks.json` from the PDF |
 
@@ -50,11 +50,13 @@ unpacked under `~/.local/share`.
 - **Turn-taking.** A status panel shows whose turn it is (colour, text and icon): *Your turn → Listening →
   Examiner thinking → Examiner speaking*. The mic is disabled while the examiner thinks or speaks.
 - **Follow-up.** After the diagnosis (button, or say "I'm ready to give my diagnosis"), the examiner asks
-  **one** spoken follow-up about the most important point the trainee missed, as the brief specifies. The trainee's
-  answer to it ends the viva. Anything wrong in that answer is picked up by the revision point, not by a second question.
+  **one** spoken follow-up that responds to the trainee's answer, as the brief asks. I chose to aim it at the most important
+  key point they missed or got wrong. A diagnosis given without announcing it ("I think this is angle closure, I'd give…")
+  is taken as the answer rather than asked for again. The trainee's answer to the follow-up ends the viva. Anything wrong
+  in that answer is picked up by the revision point, not by a second question.
 - **Saved attempts.** The attempt is saved after every turn. After a refresh it reopens with its transcript and
   revealed findings, and an unfinished viva carries on without the examiner repeating itself. Attempts are private
-  to their owner. Another user's attempt URL shows "Attempt not found".
+  to their owner. Another user's attempt URL shows "Attempt not found". A load failure (e.g. emulators not running) says so instead.
 - **Revision point.** After the viva, one revision point with a page number and a word-for-word excerpt
   from the reference note, or a clear "no support found".
 - **Recovery.** A text box takes the place of voice (noisy room, no mic). An empty transcript gets "Sorry, I didn't
@@ -169,7 +171,7 @@ Full expected vs observed tables are in [CHECKS.md](CHECKS.md). Summary:
    Each chunk carries its section path, e.g. "Managing an acute attack > Immediate treatment".
 4. **Page spans.** A paragraph that runs over a page break (the acetazolamide bullet, pages 5–6) stays as one
    chunk, with character ranges per page. A citation uses the page where the quoted words are printed: "Check for
-   sulfonamide allergy…" cites page 6, not "5–6".
+   sulfonamide allergy…" cites page 6, not "5–6". A quote that itself runs over the break cites both pages.
 5. **Embed** each chunk (section heading + text) with a local model (`bge-small-en-v1.5` via transformers.js,
    so no API key is needed). Abbreviations the note defines on first use ("Laser peripheral iridotomy (LPI)") are
    expanded in the embedded text only. The stored text stays verbatim for checking quotes.
@@ -182,7 +184,9 @@ Full expected vs observed tables are in [CHECKS.md](CHECKS.md). Summary:
 2. **Retrieve** with a hybrid: the top 3 chunks by embedding similarity plus the top 3 by BM25 keyword score,
    merged and ordered by reciprocal rank fusion (up to 6 passages).
 3. **Write and verify.** Haiku must pick one retrieved passage and quote it word for word, or say none supports a point.
-   Code checks the quote and finds its page. A quote it can't verify becomes "no support found".
+   Code finds the quote in that passage (ignoring only quote style, dashes, spacing and case) and shows the **note's own
+   wording** for it, not the model's copy, with the page(s) it is printed on. A quote that can't be found, or is longer
+   than 50 words, becomes "no support found".
 
 Why hybrid: the note's distractor sections share vocabulary with the right answer. I checked five queries (one per
 follow-up idea, plus the sulfonamide allergy and chlorphenamine key points) and looked at where the correct passage ranked:
@@ -212,7 +216,7 @@ trust it until I'd measured it:
   (table above). One change fixed the fellow-eye query but broke another query, so it wasn't kept as it was.
 - **The end-to-end check.** Check 3 (`npm run test:checks`) runs the whole revision step against the real
   model. It asserts that the right passage is retrieved, the cited passage is one that supports the point,
-  and the cited page is where the quote is printed.
+  the excerpt shown is the note's exact text, and the cited page is where that text is printed.
 
 The lesson I took: the AI's first version was plausible and wrong on exactly the case the brief warns about
 (distractors). The checks I wrote are what caught it, not reading the code.

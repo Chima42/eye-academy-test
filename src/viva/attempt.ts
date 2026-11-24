@@ -46,8 +46,12 @@ export type RevisionPoint =
       status: 'supported'
       gap: string
       point: string
+      /** The note's own text for the quote. */
       excerpt: string
+      /** First page the quote is printed on. */
       page: number
+      /** Every page it is printed on (two when a quote runs over a page break). */
+      pages?: number[]
       /** The retrieved passage the excerpt was verified against. */
       chunkId: string
       retrieved: RetrievedPassage[]

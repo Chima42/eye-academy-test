@@ -10,7 +10,7 @@ import type { CaseFile, RevealedFinding } from '../case/types'
  */
 export type Stage = 'findings' | 'diagnosis' | 'follow_up' | 'complete'
 
-export type Intent = 'finding_request' | 'too_broad' | 'ready_to_answer' | 'other'
+export type Intent = 'finding_request' | 'too_broad' | 'ready_to_answer' | 'gives_answer' | 'other'
 
 export interface Classification {
   intent: Intent
@@ -47,6 +47,8 @@ export interface TurnResult {
   counted: boolean
   /** Set when this turn produced the follow-up question. */
   followUpQuestion?: string
+  /** Set when this turn was the trainee's diagnosis and management answer. */
+  diagnosisAnswer?: string
 }
 
 export const PROMPTS = {
@@ -74,6 +76,8 @@ export async function runTurn(viva: CaseFile, input: TurnInput, model: ExaminerM
       if (intent === 'ready_to_answer') {
         return { spoken: PROMPTS.askForAnswer, revealed: [], nextStage: 'diagnosis', counted: true }
       }
+      // They gave the diagnosis without announcing it first: take it as their answer, don't ask again.
+      if (intent === 'gives_answer') return answerDiagnosis(utterance, model)
       // "Is there anything wrong with the left eye?" would reveal the whole examination at once;
       // asking for findings one by one is the skill being tested, so ask which examination.
       if (intent === 'too_broad') {
@@ -86,13 +90,24 @@ export async function runTurn(viva: CaseFile, input: TurnInput, model: ExaminerM
       const reply = replyForFindings(viva.findings, finding_ids)
       return { spoken: reply.spoken, revealed: reply.revealed, nextStage: 'findings', counted: true }
     }
-    case 'diagnosis': {
-      const question = await model.writeFollowUp(utterance)
-      return { spoken: question, revealed: [], nextStage: 'follow_up', counted: true, followUpQuestion: question }
-    }
+    case 'diagnosis':
+      return answerDiagnosis(utterance, model)
     case 'follow_up':
       return { spoken: PROMPTS.closing, revealed: [], nextStage: 'complete', counted: true }
     case 'complete':
       return { spoken: PROMPTS.closing, revealed: [], nextStage: 'complete', counted: false }
+  }
+}
+
+/** The trainee's diagnosis and management: record it and ask the one follow-up. */
+async function answerDiagnosis(utterance: string, model: ExaminerModel): Promise<TurnResult> {
+  const question = await model.writeFollowUp(utterance)
+  return {
+    spoken: question,
+    revealed: [],
+    nextStage: 'follow_up',
+    counted: true,
+    followUpQuestion: question,
+    diagnosisAnswer: utterance,
   }
 }

@@ -36,6 +36,16 @@ describe('runTurn', () => {
     expect(r).toMatchObject({ spoken: PROMPTS.askForAnswer, nextStage: 'diagnosis' })
   })
 
+  it('takes a diagnosis given during the findings stage as the answer, without asking again', async () => {
+    const model = fakeModel({ classify: async () => ({ intent: 'gives_answer', finding_ids: [] }) })
+    const r = await runTurn(viva, { stage: 'findings', utterance: "It's acute angle closure, I'd give timolol" }, model)
+    expect(r).toMatchObject({
+      nextStage: 'follow_up',
+      followUpQuestion: 'Why treat the left eye as well?',
+      diagnosisAnswer: "It's acute angle closure, I'd give timolol",
+    })
+  })
+
   it('asks one follow-up after the diagnosis, then closes', async () => {
     const model = fakeModel()
     const r1 = await runTurn(viva, { stage: 'diagnosis', utterance: 'Acute angle closure, give drops' }, model)

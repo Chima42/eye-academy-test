@@ -41,15 +41,23 @@ describe('locateExcerpt: citation check and exact page', () => {
   const acetazolamide = chunk('p5-14')
 
   it('cites page 5 for the part of a cross-page paragraph printed on page 5', () => {
-    expect(locateExcerpt(acetazolamide, 'Acetazolamide 500 mg, given intravenously if the IOP is above about 50 mmHg')).toBe(5)
+    expect(locateExcerpt(acetazolamide, 'Acetazolamide 500 mg, given intravenously if the IOP is above about 50 mmHg')?.pages).toEqual([5])
   })
 
   it('cites page 6 for the part printed on page 6', () => {
-    expect(locateExcerpt(acetazolamide, 'Check for sulfonamide allergy, kidney disease, low potassium and sickle cell disease')).toBe(6)
+    expect(locateExcerpt(acetazolamide, 'Check for sulfonamide allergy, kidney disease, low potassium and sickle cell disease')?.pages).toEqual([6])
   })
 
-  it('accepts quotes, curly apostrophes and a trailing ellipsis', () => {
-    expect(locateExcerpt(chunk('p6-8'), '“Prophylactic LPI in the fellow eye, because without treatment around 40 to 50% of fellow eyes…”')).toBe(6)
+  it('cites both pages when the quote runs over the page break', () => {
+    expect(locateExcerpt(acetazolamide, 'otherwise orally (not the slow-release form), then 250 mg four times a day')?.pages).toEqual([5, 6])
+  })
+
+  it("returns the note's own text, not the model's copy of it", () => {
+    const found = locateExcerpt(chunk('p6-8'), '“PROPHYLACTIC LPI in the fellow eye, because without treatment around 40 to 50% of fellow eyes…”')
+    expect(found).toEqual({
+      text: 'Prophylactic LPI in the fellow eye, because without treatment around 40 to 50% of fellow eyes',
+      pages: [6],
+    })
   })
 
   it('rejects an excerpt that is not verbatim in the chunk', () => {

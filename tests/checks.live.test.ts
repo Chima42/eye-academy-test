@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { viva } from '../src/case/case'
 import note from '../data/note-chunks.json'
+import { locateExcerpt } from '../src/note/chunk'
 import { examinerModel } from '../src/server/examiner-model'
 import { pointFromNote, revisionPoint } from '../src/server/revision-model'
 import { runTurn } from '../src/viva/engine'
@@ -85,6 +86,21 @@ describe('Follow-on requests use the previous request', () => {
   })
 })
 
+describe('A diagnosis given during the findings stage', () => {
+  it('is taken as the answer and gets the follow-up, not "what is your diagnosis?"', async () => {
+    const r = await ask("I think this is acute angle closure. I'd lie her flat and give timolol and apraclonidine.")
+    console.log('[early diagnosis]', r.spoken)
+    expect(r.nextStage).toBe('follow_up')
+    expect(r.diagnosisAnswer).toContain('angle closure')
+  })
+
+  it('a question that mentions a condition is still a findings request', async () => {
+    const r = await ask("Could this be glaucoma? What's the pressure in the right eye?")
+    expect(r.nextStage).toBe('findings')
+    expect(r.revealed.map((f) => f.id)).toEqual(['iop_right'])
+  })
+})
+
 describe('Check 3: the citation supports the revision point', () => {
   // A good answer that covers every key point except treating the fellow (left) eye.
   const input = {
@@ -107,13 +123,16 @@ describe('Check 3: the citation supports the revision point', () => {
     expect(r.retrieved.map((p) => p.chunkId)).toContain('p6-8')
     // The cited passage is one that actually supports treating the fellow eye.
     expect(['p6-8', 'p7-2', 'p5-13', 'p6-7']).toContain(r.chunkId)
-    // Verbatim: the excerpt is word for word in the cited chunk, and the page is where it's printed.
+    // Verbatim: the excerpt shown is the note's own text, and the cited page is where it's printed.
     const cited = note.chunks.find((c) => c.id === r.chunkId)!
-    expect(cited.pages).toContain(r.page)
+    expect(cited.text).toContain(r.excerpt)
+    expect(locateExcerpt(cited, r.excerpt)?.pages).toEqual(r.pages)
+    expect(r.page).toBe(r.pages?.[0])
   })
 
   it('says so when the note has no support (a gap the note does not cover)', async () => {
     const r = await pointFromNote(
+      viva,
       input,
       'Long-term control of her systemic hypertension',
       'Choosing an antihypertensive drug and blood pressure target for a patient on amlodipine',

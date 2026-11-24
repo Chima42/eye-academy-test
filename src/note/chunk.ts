@@ -230,35 +230,56 @@ export function expandForEmbedding(text: string, abbreviations: Map<string, stri
   return out
 }
 
-/** Normalise for verbatim comparison: quotes, dashes and whitespace vary between PDF text and model output. */
-export function normalise(t: string): string {
-  return t
-    .replace(/[‘’]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[–—]/g, '-')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase()
+/**
+ * Normalise for comparison: quote styles, dashes, whitespace and case vary between the PDF text
+ * and the model's copy. `map[i]` is the index in the original text of normalised character i.
+ */
+function normaliseWithMap(t: string): { norm: string; map: number[] } {
+  let norm = ''
+  const map: number[] = []
+  for (let i = 0; i < t.length; i++) {
+    let c = t[i]
+    if (/\s/.test(c)) {
+      if (norm === '' || norm.endsWith(' ')) continue // trim leading, collapse runs
+      c = ' '
+    } else if (c === '\u2018' || c === '\u2019') c = "'"
+    else if (c === '\u201c' || c === '\u201d') c = '"'
+    else if (c === '\u2013' || c === '\u2014') c = '-'
+    else {
+      const lower = c.toLowerCase()
+      if (lower.length === 1) c = lower
+    }
+    norm += c
+    map.push(i)
+  }
+  if (norm.endsWith(' ')) {
+    norm = norm.slice(0, -1)
+    map.pop()
+  }
+  return { norm, map }
+}
+
+export const normalise = (t: string): string => normaliseWithMap(t).norm
+
+export interface LocatedExcerpt {
+  /** The quote as printed in the note (not the model's copy of it). */
+  text: string
+  /** Every page the quote is printed on; usually one. */
+  pages: number[]
 }
 
 /**
- * Find a quoted excerpt in a chunk and return the page it starts on, or null if the excerpt
- * isn't verbatim in the chunk. This is both the "is the citation real" check and the page lookup.
+ * Find a quoted excerpt in a chunk. Returns the note's own text for it and the pages it is printed
+ * on, or null if it isn't in the chunk. This is both the "is the citation real" check and the page lookup.
  */
-export function locateExcerpt(chunk: Pick<Chunk, 'text' | 'pageSpans'>, excerpt: string): number | null {
+export function locateExcerpt(chunk: Pick<Chunk, 'text' | 'pageSpans'>, excerpt: string): LocatedExcerpt | null {
   const needle = normalise(excerpt.replace(/^["“']|["”']$/g, '').replace(/\.\.\.$|…$/, ''))
   if (needle.length < 12) return null
-  // Map normalised positions back to original positions by normalising the prefix.
-  const hay = normalise(chunk.text)
-  const at = hay.indexOf(needle)
+  const { norm, map } = normaliseWithMap(chunk.text)
+  const at = norm.indexOf(needle)
   if (at === -1) return null
-  let origIndex = 0
-  for (let i = 0; i <= chunk.text.length; i++) {
-    if (normalise(chunk.text.slice(0, i)).length >= at) {
-      origIndex = i
-      break
-    }
-  }
-  const span = chunk.pageSpans.find((s) => origIndex >= s.start && origIndex < s.end) ?? chunk.pageSpans.at(-1)!
-  return span.page
+  const start = map[at]
+  const end = map[at + needle.length - 1] + 1
+  const pages = chunk.pageSpans.filter((s) => s.start < end && s.end > start).map((s) => s.page)
+  return { text: chunk.text.slice(start, end), pages: pages.length ? pages : [chunk.pageSpans[0].page] }
 }
