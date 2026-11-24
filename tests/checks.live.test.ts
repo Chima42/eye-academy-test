@@ -40,6 +40,18 @@ describe('Check 2: unavailable finding', () => {
   })
 })
 
+describe('Follow-on requests use the previous request', () => {
+  it('"And what about the left eye?" after right gonioscopy -> left gonioscopy', async () => {
+    const r = await runTurn(
+      viva,
+      { stage: 'findings', utterance: 'And what about the left eye?', previous: { utterance: 'Can I see the gonioscopy on the right?', findingIds: ['gonio_right'] } },
+      model,
+    )
+    console.log('[follow-on]', r.revealed.map((f) => f.display))
+    expect(r.revealed.map((f) => f.id)).toEqual(['gonio_left'])
+  })
+})
+
 describe('Check 3: the citation supports the revision point', () => {
   // A good answer that covers every key point except treating the fellow (left) eye.
   const input = {

@@ -11,12 +11,26 @@ export interface TranscriptEntry {
   revealed?: RevealedFinding[]
 }
 
+/**
+ * One timed voice turn. totalMs is the headline number; the rest split it up:
+ *   totalMs ~= stopRecordingMs + sttRoundTripMs + llmMs + audioStartMs
+ * sttMs and ttsFirstByteMs are server-side (Server-Timing) parts of sttRoundTripMs and audioStartMs.
+ */
 export interface TurnTiming {
   at: number
   /** Button release -> examiner audio 'playing'. The number reported in the write-up. */
   totalMs: number
+  /** Release -> recording blob ready. */
+  stopRecordingMs?: number
+  /** Blob ready -> transcript back in the browser (upload + Deepgram + response). */
+  sttRoundTripMs?: number
+  /** Deepgram speech-to-text time, measured on the server. */
   sttMs?: number
+  /** Examiner reply round trip (server function, including Claude). */
   llmMs?: number
+  /** Audio requested -> 'playing' (text-to-speech first byte + browser buffering). */
+  audioStartMs?: number
+  /** Deepgram text-to-speech time to first byte, measured on the server. */
   ttsFirstByteMs?: number
 }
 

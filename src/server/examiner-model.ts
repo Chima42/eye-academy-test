@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 import type { CaseFile } from '../case/types'
-import type { Classification, ExaminerModel } from '../viva/engine'
+import type { Classification, ExaminerModel, PreviousRequest } from '../viva/engine'
 
 export const MODEL = 'claude-haiku-5-5'
 
@@ -34,15 +34,19 @@ Return:
 - intent "finding_request" when they ask for any examination finding or test result, even one not in the list.
 - intent "ready_to_answer" when they say they are ready to give their diagnosis or management, or start giving it.
 - intent "other" for anything else (greetings, questions about the viva, history questions).
-- finding_ids: every id that matches what they asked for. Respect the eye: "right IOP" is only iop_right. If no eye is given, or they say "both", include every eye that has the finding. Abbreviations count (IOP = intraocular pressure, VA = visual acuity, RAPD, U&E, AC = anterior chamber). Return [] when nothing in the list matches; never invent ids.`
+- finding_ids: every id that matches what they asked for. Respect the eye: "right IOP" is only iop_right. If no eye is given, or they say "both", include every eye that has the finding. Abbreviations count (IOP = intraocular pressure, VA = visual acuity, RAPD, U&E, AC = anterior chamber). Return [] when nothing in the list matches; never invent ids.
+- A short follow-on such as "and the left?" or "what about the other eye?" refers to their previous request, if one is given: apply it to the new eye or finding.`
 }
 
-export async function classify(viva: CaseFile, utterance: string): Promise<Classification> {
+export async function classify(viva: CaseFile, utterance: string, previous?: PreviousRequest): Promise<Classification> {
+  const content = previous
+    ? `Previous request: "${previous.utterance}" (answered with: ${previous.findingIds.join(', ') || 'nothing'})\nCurrent request: ${utterance}`
+    : utterance
   const response = await anthropic().messages.parse({
     model: MODEL,
     max_tokens: 2000,
     system: classifierSystem(viva),
-    messages: [{ role: 'user', content: utterance }],
+    messages: [{ role: 'user', content }],
     output_config: { effort: 'low', format: zodOutputFormat(ClassificationSchema) },
   })
   if (!response.parsed_output) throw new Error(`Classifier returned no output (stop_reason: ${response.stop_reason})`)
@@ -81,6 +85,6 @@ export async function writeFollowUp(viva: CaseFile, diagnosisAnswer: string): Pr
 }
 
 export const examinerModel = (viva: CaseFile): ExaminerModel => ({
-  classify: (utterance) => classify(viva, utterance),
+  classify: (utterance, previous) => classify(viva, utterance, previous),
   writeFollowUp: async (answer) => (await writeFollowUp(viva, answer)).question,
 })

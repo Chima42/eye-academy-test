@@ -60,14 +60,16 @@ let current: HTMLAudioElement | null = null
 /**
  * Speak text through /api/speak. Resolves `started` when audio starts playing (the end of the
  * timed voice turn) and `ended` when it finishes. The <audio> element plays the MP3 as it streams.
+ * `ttsFirstByteMs()` reads the server's timing; the browser only records it once the download
+ * has finished, so call it after `ended`.
  */
-export function speak(text: string): { started: Promise<{ ttsFirstByteMs?: number }>; ended: Promise<void> } {
+export function speak(text: string): { started: Promise<void>; ended: Promise<void>; ttsFirstByteMs: () => number | undefined } {
   current?.pause()
   const url = `/api/speak?text=${encodeURIComponent(text)}`
   const audio = new Audio(url)
   current = audio
-  const started = new Promise<{ ttsFirstByteMs?: number }>((resolve, reject) => {
-    audio.addEventListener('playing', () => resolve({ ttsFirstByteMs: serverTiming(url, 'tts_first_byte') }), { once: true })
+  const started = new Promise<void>((resolve, reject) => {
+    audio.addEventListener('playing', () => resolve(), { once: true })
     audio.addEventListener('error', () => reject(new Error('Audio playback failed')), { once: true })
   })
   const ended = new Promise<void>((resolve) => {
@@ -76,7 +78,7 @@ export function speak(text: string): { started: Promise<{ ttsFirstByteMs?: numbe
     audio.addEventListener('pause', () => resolve(), { once: true })
   })
   audio.play().catch(() => {}) // errors surface through `started`
-  return { started, ended }
+  return { started, ended, ttsFirstByteMs: () => serverTiming(url, 'tts_first_byte') }
 }
 
 export function stopSpeaking(): void {

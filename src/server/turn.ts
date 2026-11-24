@@ -9,6 +9,7 @@ const TurnInputSchema = z.object({
   stage: z.enum(['findings', 'diagnosis', 'follow_up', 'complete']),
   utterance: z.string().max(4000),
   diagnosisAnswer: z.string().max(4000).optional(),
+  previous: z.object({ utterance: z.string().max(4000), findingIds: z.array(z.string()).max(30) }).optional(),
 })
 
 /** One examiner turn. Stateless: the client keeps the attempt and saves it to Firestore. */

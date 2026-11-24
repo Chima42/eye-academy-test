@@ -17,9 +17,15 @@ export interface Classification {
   finding_ids: string[]
 }
 
+/** The trainee's previous findings request, so "what about the left eye?" can be understood. */
+export interface PreviousRequest {
+  utterance: string
+  findingIds: string[]
+}
+
 /** The LLM calls the engine needs. Injected so tests can use fakes or the real model. */
 export interface ExaminerModel {
-  classify(utterance: string): Promise<Classification>
+  classify(utterance: string, previous?: PreviousRequest): Promise<Classification>
   writeFollowUp(diagnosisAnswer: string): Promise<string>
 }
 
@@ -28,6 +34,7 @@ export interface TurnInput {
   utterance: string
   /** The trainee's diagnosis answer; needed when moving into the follow-up. */
   diagnosisAnswer?: string
+  previous?: PreviousRequest
 }
 
 export interface TurnResult {
@@ -62,7 +69,7 @@ export async function runTurn(viva: CaseFile, input: TurnInput, model: ExaminerM
 
   switch (stage) {
     case 'findings': {
-      const { intent, finding_ids } = await model.classify(utterance)
+      const { intent, finding_ids } = await model.classify(utterance, input.previous)
       if (intent === 'ready_to_answer') {
         return { spoken: PROMPTS.askForAnswer, revealed: [], nextStage: 'diagnosis', counted: true }
       }
