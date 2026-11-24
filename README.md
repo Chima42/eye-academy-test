@@ -43,6 +43,8 @@ Data is saved to `.emulator-data/` when you stop with **Ctrl+C**. If the process
 
 ## What works and where I stopped
 
+Built in about 3 hours over one session, not counting reading the brief and planning beforehand.
+
 **Works**
 - Sign in, start a viva, hear the opening prompt.
 - **Layout.** History is always on screen (left). The conversation has its own scrolling region that follows
