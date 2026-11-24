@@ -30,7 +30,7 @@ unpacked under `~/.local/share`.
 | Command | Purpose |
 |---|---|
 | `npm test` | Offline unit tests (57) |
-| `npm run test:checks` | The three checks, plus regressions found in manual testing, against the real model (15) |
+| `npm run test:checks` | The three checks, plus regressions found in manual testing, against the real model (17) |
 | `npm run check:privacy` | Two-user Firestore rules check (with `npm run dev` running) |
 | `npm run prepare:note` | Rebuild `data/note-chunks.json` from the PDF |
 

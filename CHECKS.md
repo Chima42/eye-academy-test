@@ -112,5 +112,6 @@ Deliberately trying to break it, and a code review against the brief, found thes
 | "Corneal thickness" | Revealed the cornea descriptions | Not available |
 | "I think this is acute angle closure, I'd lie her flat…" during findings | Taken as "ready to answer", answer discarded, asked again | Taken as the diagnosis; examiner asks the follow-up |
 | "Pressures, pupils and gonioscopy in both eyes" | Sometimes added the RAPD to "pupils" | Only the named findings |
+| "Talk to me about the acuity of the eye" | Treated as too broad ("Which examination…?") | Both visual acuities. The classifier now lists what was named before choosing the intent; 24/24 consistent in a probe |
 
-Final live runs: 15/15 checks pass, three runs in a row.
+Final live runs: 17/17 checks pass, three runs in a row.

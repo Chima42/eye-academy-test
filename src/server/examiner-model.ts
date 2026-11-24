@@ -13,7 +13,10 @@ function findingCatalogue(viva: CaseFile): string {
     .join('\n')
 }
 
+// `named` comes first so the model decides what was named before choosing the intent:
+// a request that names an examination is never "too_broad" ("tell me about the pressure of the eye").
 const ClassificationSchema = z.object({
+  named: z.array(z.string()).describe('Examinations or tests the words name, e.g. ["intraocular pressure"]; [] if none'),
   intent: z.enum(['finding_request', 'too_broad', 'ready_to_answer', 'gives_answer', 'other']),
   finding_ids: z.array(z.string()),
 })
@@ -26,7 +29,7 @@ ${findingCatalogue(viva)}
 
 Return:
 - intent "finding_request" when they ask for any specific examination finding or test result, INCLUDING tests that are not in the list (visual fields, HbA1c, corneal thickness): those are finding_request with finding_ids []. Asking for one or a few named examinations is specific ("pressures, pupils and gonioscopy in both eyes" names three).
-- intent "too_broad" when they ask for everything or an unspecified examination without naming what ("is there anything wrong with the left eye?", "examine the eye", "give me all the findings", "what else is abnormal?"). Return finding_ids [] for this.
+- intent "too_broad" when they ask for everything or an unspecified examination without naming what ("is there anything wrong with the left eye?", "examine the eye", "give me all the findings", "what else is abnormal?"). Return finding_ids [] for this. Only use too_broad when "named" is empty: if the words name any examination, it is finding_request however it is phrased ("talk to me about the acuity of the eye", "tell me about the pressure of the eye"). "The eye" with no side means both eyes.
 - intent "ready_to_answer" when they say they are ready to give their diagnosis or management, without giving it yet.
 - intent "gives_answer" when they actually state their diagnosis and/or management as their answer ("this is acute angle closure, I'd give timolol…"). Not for a question that mentions a condition ("could this be glaucoma? what's the pressure?").
 - intent "other" for anything else (greetings, questions about the viva, history questions).

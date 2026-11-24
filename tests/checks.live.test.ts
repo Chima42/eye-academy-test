@@ -48,6 +48,14 @@ describe('Too-broad requests', () => {
     expect(r.revealed).toEqual([])
   })
 
+  it.each([
+    ['Talk to me about the acuity of the eye.', ['va_left', 'va_right']],
+    ['Tell me about the pressure of the eye', ['iop_left', 'iop_right']],
+  ])('"%s" names an examination, so it is answered', async (utterance, ids) => {
+    const r = await ask(utterance)
+    expect(r.revealed.map((f) => f.id).sort()).toEqual(ids)
+  })
+
   it('"Pressures, pupils and gonioscopy in both eyes" is still specific', async () => {
     const r = await ask('Pressures, pupils and gonioscopy in both eyes')
     expect(r.revealed.map((f) => f.id).sort()).toEqual(['gonio_left', 'gonio_right', 'iop_left', 'iop_right', 'pupil_left', 'pupil_right'])
