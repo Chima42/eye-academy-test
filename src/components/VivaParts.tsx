@@ -37,13 +37,15 @@ export function HistoryCard({ viva }: { viva: CaseFile }) {
   ]
   return (
     <section className="rounded-xl bg-white p-4 shadow-sm">
-      <h2 className="mb-2 font-semibold">History</h2>
-      <p className="mb-3 text-sm text-slate-600">{p.age}-year-old {p.sex}</p>
-      <dl className="space-y-2 text-sm">
+      <h2 className="text-lg font-semibold">History</h2>
+      <p className="mb-3 text-sm font-medium text-slate-600">
+        {p.age}-year-old {p.sex}
+      </p>
+      <dl className="divide-y divide-slate-100 text-sm">
         {rows.map(([k, v]) => (
-          <div key={k}>
-            <dt className="font-medium text-slate-700">{k}</dt>
-            <dd>{v}</dd>
+          <div key={k} className="py-2.5 first:pt-0 last:pb-0">
+            <dt className="text-xs font-bold uppercase tracking-wide text-indigo-900">{k}</dt>
+            <dd className="mt-1 leading-relaxed text-slate-800">{v}</dd>
           </div>
         ))}
       </dl>
@@ -51,10 +53,17 @@ export function HistoryCard({ viva }: { viva: CaseFile }) {
   )
 }
 
-export function FindingsPanel({ findings }: { findings: RevealedFinding[] }) {
+export function FindingsPanel({ findings, onCollapse }: { findings: RevealedFinding[]; onCollapse?: () => void }) {
   return (
     <section className="rounded-xl bg-white p-4 shadow-sm">
-      <h2 className="mb-2 font-semibold">Findings revealed ({findings.length})</h2>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">Findings revealed ({findings.length})</h2>
+        {onCollapse && (
+          <button onClick={onCollapse} aria-label="Hide findings" title="Hide findings" className="rounded px-2 py-1 text-slate-500 hover:bg-slate-100">
+            ⇥
+          </button>
+        )}
+      </div>
       {findings.length === 0 ? (
         <p className="text-sm text-slate-500">Ask the examiner for examination findings.</p>
       ) : (
@@ -70,21 +79,19 @@ export function FindingsPanel({ findings }: { findings: RevealedFinding[] }) {
   )
 }
 
+/** The conversation as a list. The page puts it in its own scrolling region. */
 export function Transcript({ entries }: { entries: TranscriptEntry[] }) {
   return (
-    <section className="rounded-xl bg-white p-4 shadow-sm">
-      <h2 className="mb-2 font-semibold">Transcript</h2>
-      <ol className="space-y-3 text-sm">
+    <ol className="space-y-3 text-sm" aria-label="Transcript">
         {entries.map((e, i) => (
           <li key={i} className={e.role === 'examiner' ? 'pr-8' : 'pl-8 text-right'}>
             <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
               {e.role === 'examiner' ? 'Examiner' : e.source === 'voice' ? 'You · Heard' : 'You · Typed'}
             </p>
-            <p className={`inline-block rounded-lg px-3 py-2 ${e.role === 'examiner' ? 'bg-indigo-50' : 'bg-slate-100'}`}>{e.text}</p>
+            <p className={`inline-block rounded-lg px-3 py-2 text-left ${e.role === 'examiner' ? 'bg-indigo-50' : 'bg-slate-100'}`}>{e.text}</p>
           </li>
         ))}
-      </ol>
-    </section>
+    </ol>
   )
 }
 

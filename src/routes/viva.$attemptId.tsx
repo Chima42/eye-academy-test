@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { viva } from '../case/case'
 import { SignIn } from '../components/SignIn'
 import { FindingsPanel, HistoryCard, RevisionPanel, StatusIndicator, Transcript } from '../components/VivaParts'
@@ -19,10 +19,41 @@ function VivaPage() {
   return <Viva uid={user.uid} attemptId={attemptId} />
 }
 
+const FINDINGS_OPEN_KEY = 'viva.findingsOpen'
+
+/** Per-browser preference for the findings panel; storage can be unavailable (private mode). */
+function useFindingsOpen(): [boolean, (open: boolean) => void] {
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(FINDINGS_OPEN_KEY) !== 'false'
+    } catch {
+      return true
+    }
+  })
+  const set = (next: boolean) => {
+    setOpen(next)
+    try {
+      localStorage.setItem(FINDINGS_OPEN_KEY, String(next))
+    } catch {
+      /* preference just won't persist */
+    }
+  }
+  return [open, set]
+}
+
 function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
   const v = useViva(uid, attemptId)
   const [text, setText] = useState('')
+  const [findingsOpen, setFindingsOpen] = useFindingsOpen()
   const { attempt, status } = v
+
+  // The transcript has its own scrolling region and follows the newest message.
+  const scroller = useRef<HTMLDivElement>(null)
+  const scrollKey = `${attempt?.transcript.length ?? 0}-${attempt?.revision ? 1 : 0}-${status}`
+  useEffect(() => {
+    const el = scroller.current
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+  }, [scrollKey])
 
   // Spacebar push-to-talk (ignored while typing in the text box).
   useEffect(() => {
@@ -65,85 +96,108 @@ function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
   }[attempt.stage]
 
   return (
-    <main className="mx-auto max-w-6xl space-y-4 p-4">
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <div>
+    <div
+      className={`grid gap-4 p-4 lg:h-screen lg:overflow-hidden ${
+        findingsOpen ? 'lg:grid-cols-[minmax(260px,1fr)_2fr_minmax(240px,1fr)]' : 'lg:grid-cols-[minmax(260px,1fr)_2fr_auto]'
+      }`}
+    >
+      {/* Left: history, always on screen */}
+      <aside className="lg:min-h-0 lg:overflow-y-auto">
+        <HistoryCard viva={viva} />
+      </aside>
+
+      {/* Centre: status, conversation (own scroll region), controls docked underneath */}
+      <main className="flex min-h-0 flex-col gap-3">
+        <header>
           <Link to="/" className="text-sm text-indigo-900 underline">← Your attempts</Link>
-          <h1 className="text-2xl font-semibold">{viva.title}</h1>
+          <h1 className="text-xl font-semibold">{viva.title}</h1>
           <p className="text-sm text-slate-600">{stageHint}</p>
-        </div>
-      </header>
+        </header>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
-        <div className="space-y-4">
-          <HistoryCard viva={viva} />
-          <FindingsPanel findings={attempt.revealed} />
-        </div>
+        {(!complete || status === 'reviewing') && <StatusIndicator status={status} />}
 
-        <div className="space-y-4">
-          {!complete && (
-            <section className="space-y-3 rounded-xl bg-white p-4 shadow-sm">
-              <StatusIndicator status={status} />
-              {status === 'not_started' ? (
-                <button onClick={() => void v.begin()} className="w-full rounded-xl bg-indigo-900 py-4 text-lg font-semibold text-white">
-                  {attempt.transcript.length > 1 ? 'Resume viva' : 'Start viva'}
-                </button>
-              ) : (
-                <>
-                  <button
-                    disabled={!canTalk && status !== 'listening'}
-                    onPointerDown={(e) => {
-                      e.currentTarget.setPointerCapture(e.pointerId)
-                      v.startTalking()
-                    }}
-                    onPointerUp={() => void v.stopTalking()}
-                    onPointerCancel={() => void v.stopTalking()}
-                    className={`w-full select-none touch-none rounded-xl py-6 text-lg font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-slate-300 ${status === 'listening' ? 'bg-red-600' : 'bg-emerald-700'}`}
-                  >
-                    {status === 'listening' ? 'Release to send' : 'Hold to speak'}
-                  </button>
-                  <form onSubmit={submit} className="flex gap-2">
-                    <input
-                      value={text}
-                      onChange={(e) => setText(e.target.value)}
-                      disabled={status !== 'idle'}
-                      placeholder="Or type here (noisy room, no mic)…"
-                      aria-label="Type your question or answer"
-                      className="flex-1 rounded border px-3 py-2 disabled:bg-slate-100"
-                    />
-                    <button disabled={status !== 'idle'} className="rounded bg-slate-800 px-4 text-white disabled:opacity-40">Send</button>
-                  </form>
-                  <div className="flex flex-wrap gap-2 text-sm">
-                    {attempt.stage === 'findings' && (
-                      <button onClick={() => void v.moveToDiagnosis()} disabled={status !== 'idle'} className="rounded border border-indigo-900 px-3 py-1 text-indigo-900 disabled:opacity-40">
-                        Give my diagnosis
-                      </button>
-                    )}
-                    <button onClick={() => void v.repeatLast()} disabled={status !== 'idle'} className="rounded border px-3 py-1 disabled:opacity-40">
-                      Repeat last
-                    </button>
-                  </div>
-                </>
-              )}
-              {v.error && <p role="alert" className="rounded bg-red-50 px-3 py-2 text-sm text-red-800">{v.error}</p>}
-            </section>
-          )}
-
-          {complete && status === 'reviewing' && <StatusIndicator status={status} />}
-          {attempt.revision && <RevisionPanel revision={attempt.revision} />}
-          {complete && !attempt.revision && status !== 'reviewing' && (
-            <button onClick={() => void v.begin()} className="rounded bg-indigo-900 px-4 py-2 text-white">Generate revision point</button>
-          )}
-
+        <div ref={scroller} className="max-h-[55vh] min-h-0 flex-1 overflow-y-auto rounded-xl bg-white p-4 shadow-sm lg:max-h-none">
           <Transcript entries={attempt.transcript} />
-
-          {attempt.timings.length > 0 && (
-            <p className="text-xs text-slate-500">
-              Last voice turn: {Math.round(attempt.timings.at(-1)!.totalMs)} ms (release → examiner audio). Turns timed: {attempt.timings.length}.
-            </p>
+          {attempt.revision && (
+            <div className="mt-4">
+              <RevisionPanel revision={attempt.revision} />
+            </div>
+          )}
+          {complete && !attempt.revision && status !== 'reviewing' && (
+            <button onClick={() => void v.begin()} className="mt-4 rounded bg-indigo-900 px-4 py-2 text-white">
+              Generate revision point
+            </button>
           )}
         </div>
-      </div>
-    </main>
+
+        {!complete && (
+          <section className="space-y-2">
+            {status === 'not_started' ? (
+              <button onClick={() => void v.begin()} className="w-full rounded-xl bg-indigo-900 py-4 text-lg font-semibold text-white">
+                {attempt.transcript.length > 1 ? 'Resume viva' : 'Start viva'}
+              </button>
+            ) : (
+              <>
+                <button
+                  disabled={!canTalk && status !== 'listening'}
+                  onPointerDown={(e) => {
+                    e.currentTarget.setPointerCapture(e.pointerId)
+                    v.startTalking()
+                  }}
+                  onPointerUp={() => void v.stopTalking()}
+                  onPointerCancel={() => void v.stopTalking()}
+                  className={`w-full select-none touch-none rounded-xl py-4 text-lg font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-slate-300 ${status === 'listening' ? 'bg-red-600' : 'bg-emerald-700'}`}
+                >
+                  {status === 'listening' ? 'Release to send' : 'Hold to speak (or Space)'}
+                </button>
+                <form onSubmit={submit} className="flex gap-2">
+                  <input
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    disabled={status !== 'idle'}
+                    placeholder="Or type here (noisy room, no mic)…"
+                    aria-label="Type your question or answer"
+                    className="flex-1 rounded border px-3 py-2 disabled:bg-slate-100"
+                  />
+                  <button disabled={status !== 'idle'} className="rounded bg-slate-800 px-4 text-white disabled:opacity-40">Send</button>
+                </form>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  {attempt.stage === 'findings' && (
+                    <button onClick={() => void v.moveToDiagnosis()} disabled={status !== 'idle'} className="rounded border border-indigo-900 px-3 py-1 text-indigo-900 disabled:opacity-40">
+                      Give my diagnosis
+                    </button>
+                  )}
+                  <button onClick={() => void v.repeatLast()} disabled={status !== 'idle'} className="rounded border px-3 py-1 disabled:opacity-40">
+                    Repeat last
+                  </button>
+                  {attempt.timings.length > 0 && (
+                    <span className="ml-auto text-xs text-slate-500">
+                      Last voice turn: {Math.round(attempt.timings.at(-1)!.totalMs)} ms
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
+            {v.error && <p role="alert" className="rounded bg-red-50 px-3 py-2 text-sm text-red-800">{v.error}</p>}
+          </section>
+        )}
+      </main>
+
+      {/* Right: revealed findings, collapsible */}
+      <aside className="lg:min-h-0 lg:overflow-y-auto">
+        {findingsOpen ? (
+          <FindingsPanel findings={attempt.revealed} onCollapse={() => setFindingsOpen(false)} />
+        ) : (
+          <button
+            onClick={() => setFindingsOpen(true)}
+            aria-label={`Show findings (${attempt.revealed.length})`}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-3 py-3 text-sm font-semibold shadow-sm hover:bg-indigo-50 lg:h-full lg:w-12 lg:flex-col lg:py-4"
+          >
+            <span aria-hidden>⇤</span>
+            <span className="lg:[writing-mode:vertical-rl]">Findings ({attempt.revealed.length})</span>
+          </button>
+        )}
+      </aside>
+    </div>
   )
 }
