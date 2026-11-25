@@ -21,7 +21,8 @@ cp .env.example .env.local      # then add DEEPGRAM_API_KEY and ANTHROPIC_API_KE
 npm run dev                     # Firebase Auth + Firestore emulators and the app
 ```
 
-Open the URL Vite prints (usually http://localhost:3000). Create an account: accounts only exist in the local
+Open http://localhost:3000. Every port is fixed (app 3000, Emulator UI 4000, Firestore 8080, Auth 9099, plus 4400, 4500
+and 9150 for the emulators): if one is taken, `npm run dev` names the process using it and stops. Create an account: accounts only exist in the local
 Auth emulator. The Emulator UI is at http://localhost:4000. Data persists between runs in `.emulator-data/`.
 
 The emulators need Java 21. `npm run dev` uses `JAVA_HOME` if it is set. Otherwise it looks for a JDK 21+
