@@ -37,14 +37,15 @@ Data is saved to `.emulator-data/` when you stop with **Ctrl+C**. If the process
 
 | Command | Purpose |
 |---|---|
-| `npm test` | Offline unit tests (77) |
-| `npm run test:checks` | The three checks, plus regressions found in manual testing, against the real model (22) |
-| `npm run check:privacy` | Two-user Firestore rules check (with `npm run dev` running) |
+| `npm test` | Offline unit tests (98) |
+| `npm run test:checks` | The three checks, plus regressions found in manual testing, against the real models (23) |
+| `npm run check:privacy` | Two-user Firestore rules check, and the API routes refusing requests without a valid token (with `npm run dev` running) |
 | `npm run prepare:note` | Rebuild `data/note-chunks.json` from the PDF |
 
 ## What works and where I stopped
 
-Built in about 3 hours over one session, not counting reading the brief and planning beforehand.
+Built in about 4¼ hours over two sessions: about 3 hours on the first day, then about 1¼ hours the next morning on fixes
+from testing and code review (speech-to-text formatting, server-side auth, refactoring). Not counting reading the brief and planning beforehand.
 
 **Works**
 - Sign in, start a viva, hear the opening prompt.
