@@ -42,12 +42,11 @@ function useFindingsOpen(): [boolean, (open: boolean) => void] {
 }
 
 function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
-  const v = useViva(uid, attemptId)
+  const session = useViva(uid, attemptId)
   const [text, setText] = useState('')
   const [findingsOpen, setFindingsOpen] = useFindingsOpen()
-  const { attempt, status } = v
+  const { attempt, status } = session
 
-  // The transcript has its own scrolling region and follows the newest message.
   const scroller = useRef<HTMLDivElement>(null)
   const scrollKey = `${attempt?.transcript.length ?? 0}-${attempt?.revision ? 1 : 0}-${status}`
   useEffect(() => {
@@ -55,19 +54,18 @@ function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }, [scrollKey])
 
-  // Spacebar push-to-talk (ignored while typing in the text box).
   useEffect(() => {
     const typing = (e: KeyboardEvent) => (e.target as HTMLElement)?.tagName === 'INPUT'
     const down = (e: KeyboardEvent) => {
       if (e.code === 'Space' && !e.repeat && !typing(e)) {
         e.preventDefault()
-        v.startTalking()
+        session.startTalking()
       }
     }
     const up = (e: KeyboardEvent) => {
       if (e.code === 'Space' && !typing(e)) {
         e.preventDefault()
-        void v.stopTalking()
+        void session.stopTalking()
       }
     }
     window.addEventListener('keydown', down)
@@ -76,9 +74,9 @@ function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [v])
+  }, [session])
 
-  if (v.notFound) {
+  if (session.notFound) {
     return (
       <main className="mx-auto mt-16 max-w-md space-y-3 rounded-xl bg-white p-6 text-center shadow">
         <h1 className="text-xl font-semibold">Attempt not found</h1>
@@ -87,7 +85,7 @@ function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
       </main>
     )
   }
-  if (v.loadFailed) {
+  if (session.loadFailed) {
     return (
       <main className="mx-auto mt-16 max-w-md space-y-3 rounded-xl bg-white p-6 text-center shadow">
         <h1 className="text-xl font-semibold">Couldn’t load this attempt</h1>
@@ -99,11 +97,11 @@ function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
   if (!attempt) return <p className="p-8">Loading attempt…</p>
 
   const complete = attempt.stage === 'complete'
-  const canTalk = status === 'idle' && v.micReady && !complete
+  const canTalk = status === 'idle' && session.micReady && !complete
   const submit = (e: FormEvent) => {
     e.preventDefault()
     if (!text.trim()) return
-    v.submitText(text.trim())
+    session.submitText(text.trim())
     setText('')
   }
   const stageHint = {
@@ -119,12 +117,10 @@ function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
         findingsOpen ? 'lg:grid-cols-[minmax(260px,1fr)_2fr_minmax(240px,1fr)]' : 'lg:grid-cols-[minmax(260px,1fr)_2fr_auto]'
       }`}
     >
-      {/* Left: history, always on screen */}
       <aside className="lg:min-h-0 lg:overflow-y-auto">
         <HistoryCard viva={viva} />
       </aside>
 
-      {/* Centre: status, conversation (own scroll region), controls docked underneath */}
       <main className="flex min-h-0 flex-col gap-3">
         <header>
           <Link to="/" className="text-sm text-indigo-900 underline">← Your attempts</Link>
@@ -141,11 +137,11 @@ function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
               <RevisionPanel revision={attempt.revision} />
             </div>
           )}
-          {complete && v.error && (
-            <p role="alert" className="mt-4 rounded bg-red-50 px-3 py-2 text-sm text-red-800">{v.error}</p>
+          {complete && session.error && (
+            <p role="alert" className="mt-4 rounded bg-red-50 px-3 py-2 text-sm text-red-800">{session.error}</p>
           )}
           {complete && !attempt.revision && status !== 'reviewing' && (
-            <button onClick={() => void v.retryRevision()} className="mt-4 rounded bg-indigo-900 px-4 py-2 text-white">
+            <button onClick={() => void session.retryRevision()} className="mt-4 rounded bg-indigo-900 px-4 py-2 text-white">
               Generate revision point
             </button>
           )}
@@ -154,7 +150,7 @@ function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
         {!complete && (
           <section className="space-y-2">
             {status === 'not_started' ? (
-              <button onClick={() => void v.begin()} className="w-full rounded-xl bg-indigo-900 py-4 text-lg font-semibold text-white">
+              <button onClick={() => void session.begin()} className="w-full rounded-xl bg-indigo-900 py-4 text-lg font-semibold text-white">
                 {attempt.transcript.length > 1 ? 'Resume viva' : 'Start viva'}
               </button>
             ) : (
@@ -163,10 +159,10 @@ function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
                   disabled={!canTalk && status !== 'listening'}
                   onPointerDown={(e) => {
                     e.currentTarget.setPointerCapture(e.pointerId)
-                    v.startTalking()
+                    session.startTalking()
                   }}
-                  onPointerUp={() => void v.stopTalking()}
-                  onPointerCancel={() => void v.stopTalking()}
+                  onPointerUp={() => void session.stopTalking()}
+                  onPointerCancel={() => void session.stopTalking()}
                   className={`w-full select-none touch-none rounded-xl py-4 text-lg font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-slate-300 ${status === 'listening' ? 'bg-red-600' : 'bg-emerald-700'}`}
                 >
                   {status === 'listening' ? 'Release to send' : 'Hold to speak (or Space)'}
@@ -184,11 +180,11 @@ function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
                 </form>
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   {attempt.stage === 'findings' && (
-                    <button onClick={() => void v.moveToDiagnosis()} disabled={status !== 'idle'} className="rounded border border-indigo-900 px-3 py-1 text-indigo-900 disabled:opacity-40">
+                    <button onClick={() => void session.moveToDiagnosis()} disabled={status !== 'idle'} className="rounded border border-indigo-900 px-3 py-1 text-indigo-900 disabled:opacity-40">
                       Give my diagnosis
                     </button>
                   )}
-                  <button onClick={() => void v.repeatLast()} disabled={status !== 'idle'} className="rounded border px-3 py-1 disabled:opacity-40">
+                  <button onClick={() => void session.repeatLast()} disabled={status !== 'idle'} className="rounded border px-3 py-1 disabled:opacity-40">
                     Repeat last
                   </button>
                   {attempt.timings.length > 0 && (
@@ -199,12 +195,11 @@ function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
                 </div>
               </>
             )}
-            {v.error && <p role="alert" className="rounded bg-red-50 px-3 py-2 text-sm text-red-800">{v.error}</p>}
+            {session.error && <p role="alert" className="rounded bg-red-50 px-3 py-2 text-sm text-red-800">{session.error}</p>}
           </section>
         )}
       </main>
 
-      {/* Right: revealed findings, collapsible */}
       <aside className="lg:min-h-0 lg:overflow-y-auto">
         {findingsOpen ? (
           <FindingsPanel findings={attempt.revealed} onCollapse={() => setFindingsOpen(false)} />

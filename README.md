@@ -80,7 +80,8 @@ Built in about 3 hours over one session, not counting reading the brief and plan
   That's acceptable for a local demo, but a deployed version must, because they spend API credit.
 - A turn is saved when the examiner's reply arrives. Refreshing while the examiner is thinking loses that one
   turn. Two tabs on the same attempt overwrite each other (last write wins).
-- Speech-to-text still mishears some drug names despite keyterms ("apraclonidine" → "apradunavol", "acetazolamide" → "acetazolol").
+- Speech-to-text still mishears some drug names despite keyterms ("apraclonidine" → "apradunavol", "acetazolamide" → "acetazolol"),
+  and occasionally drops the "O" from "OCT". "CT" then gets "not available for this case": honest, since CT isn't listed, but not what was asked.
   The follow-up and revision steps coped, because Haiku reads the intent, but a transcript shown to a trainee
   could be corrected against a drug list.
 - The revision point is generated once per attempt. There's no retry when a quote fails verification: it shows "no support".

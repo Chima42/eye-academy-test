@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { viva } from '../../case/case'
 import { keyterms, transcribe } from '../../server/deepgram'
 
-/** POST raw audio (the browser's MediaRecorder blob) -> { transcript }. */
 export const Route = createFileRoute('/api/transcribe')({
   server: {
     handlers: {

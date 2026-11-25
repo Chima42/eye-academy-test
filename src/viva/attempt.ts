@@ -5,9 +5,7 @@ export interface TranscriptEntry {
   role: 'examiner' | 'trainee'
   text: string
   at: number
-  /** Trainee turns: whether the text came from speech-to-text or the text box. */
   source?: 'voice' | 'text'
-  /** Examiner turns: findings revealed in this reply. */
   revealed?: RevealedFinding[]
 }
 
@@ -20,17 +18,14 @@ export interface TurnTiming {
   at: number
   /** Button release -> examiner audio 'playing'. The number reported in the write-up. */
   totalMs: number
-  /** Release -> recording blob ready. */
   stopRecordingMs?: number
   /** Blob ready -> transcript back in the browser (upload + Deepgram + response). */
   sttRoundTripMs?: number
-  /** Deepgram speech-to-text time, measured on the server. */
   sttMs?: number
   /** Examiner reply round trip (server function, including Claude). */
   llmMs?: number
   /** Audio requested -> 'playing' (text-to-speech first byte + browser buffering). */
   audioStartMs?: number
-  /** Deepgram text-to-speech time to first byte, measured on the server. */
   ttsFirstByteMs?: number
 }
 
@@ -48,7 +43,6 @@ export type RevisionPoint =
       point: string
       /** The note's own text for the quote. */
       excerpt: string
-      /** First page the quote is printed on. */
       page: number
       /** Every page it is printed on (two when a quote runs over a page break). */
       pages?: number[]
@@ -69,13 +63,17 @@ export interface Attempt {
   updatedAt: number
   stage: Stage
   transcript: TranscriptEntry[]
-  /** Every finding revealed so far, latest first-seen order, as it was shown. */
   revealed: RevealedFinding[]
   diagnosisAnswer?: string
   followUpQuestion?: string
   followUpAnswer?: string
   revision?: RevisionPoint
   timings: TurnTiming[]
+}
+
+export function citedPages(revision: Extract<RevisionPoint, { status: 'supported' }>): string {
+  const pages = revision.pages ?? [revision.page]
+  return pages.length > 1 ? `pages ${pages.join('–')}` : `page ${pages[0]}`
 }
 
 /** Add newly revealed findings, keeping the first snapshot of each. */

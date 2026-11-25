@@ -37,7 +37,6 @@ function answers(input: RevisionInput): string {
     .join('\n')
 }
 
-/** Step 1: compare the trainee's answers with the case key points to find the biggest gap. */
 export function findGap(viva: CaseFile, input: RevisionInput) {
   return parseStructured(
     'Gap step',
@@ -60,7 +59,6 @@ export async function revisionPoint(viva: CaseFile, input: RevisionInput): Promi
   return pointFromNote(viva, input, gap, query)
 }
 
-/** Retrieve passages for a gap and write one point, or report that the note doesn't support one. */
 export async function pointFromNote(viva: CaseFile, input: RevisionInput, gap: string, query: string): Promise<RevisionPoint> {
   const hits = await retrieve(query)
   const retrieved = summarise(hits)

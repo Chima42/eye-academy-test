@@ -1,12 +1,14 @@
 /**
  * The three repeatable checks from the brief, run against the real model.
- * Text goes through the same engine as speech; only speech-to-text is skipped.
+ * Text goes through the same engine as speech; only speech-to-text is skipped, except in the
+ * one speech round-trip check.
  * Run with: npm run test:checks   (results are written up in CHECKS.md)
  */
 import { describe, expect, it } from 'vitest'
 import { viva } from '../src/case/case'
 import note from '../data/note-chunks.json'
 import { locateExcerpt } from '../src/note/chunk'
+import { keyterms, speak, transcribe } from '../src/server/deepgram'
 import { examinerModel } from '../src/server/examiner-model'
 import { pointFromNote, revisionPoint } from '../src/server/revision-model'
 import { runTurn } from '../src/viva/engine'
@@ -143,6 +145,18 @@ describe('Answer stages', () => {
   it('"I don\'t know" is an answer', async () => {
     const r = await answerTurn('follow_up', "I don't know")
     expect(r.nextStage).toBe('complete')
+  })
+})
+
+describe('Speech-to-text', () => {
+  it('"OCT" said on its own is transcribed as OCT, not "October", and reveals the OCT finding', async () => {
+    const { response } = await speak('O. C. T.')
+    const { transcript } = await transcribe(await response.arrayBuffer(), 'audio/mpeg', keyterms(viva))
+    console.log('[stt oct] transcript:', transcript)
+    expect(transcript).toMatch(/\bOCT\b/i)
+    expect(transcript).not.toMatch(/october/i)
+    const r = await ask(transcript)
+    expect(r.revealed.map((f) => f.id)).toEqual(['oct'])
   })
 })
 

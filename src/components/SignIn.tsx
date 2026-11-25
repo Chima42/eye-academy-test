@@ -1,6 +1,23 @@
+import { FirebaseError } from 'firebase/app'
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth'
 import { useState, type FormEvent } from 'react'
 import { auth } from '../lib/firebase'
+
+const AUTH_ERROR_MESSAGES: Record<string, string> = {
+  'auth/invalid-credential': 'Email or password is incorrect.',
+  'auth/user-not-found': 'Email or password is incorrect.',
+  'auth/wrong-password': 'Email or password is incorrect.',
+  'auth/email-already-in-use': 'An account with this email already exists. Sign in instead.',
+  'auth/invalid-email': 'Enter a valid email address.',
+  'auth/weak-password': 'Use a password of at least 6 characters.',
+  'auth/too-many-requests': 'Too many attempts. Wait a moment and try again.',
+  'auth/network-request-failed': 'Could not reach the sign-in service. Is the Firebase emulator running?',
+}
+
+function authErrorMessage(error: unknown): string {
+  const code = error instanceof FirebaseError ? error.code : ''
+  return AUTH_ERROR_MESSAGES[code] ?? 'Sign-in failed. Try again.'
+}
 
 export function SignIn() {
   const [email, setEmail] = useState('')
@@ -16,8 +33,8 @@ export function SignIn() {
     try {
       if (mode === 'signin') await signInWithEmailAndPassword(auth, email, password)
       else await createUserWithEmailAndPassword(auth, email, password)
-    } catch (err) {
-      setError(err instanceof Error ? err.message.replace('Firebase: ', '') : 'Sign-in failed')
+    } catch (error) {
+      setError(authErrorMessage(error))
     } finally {
       setBusy(false)
     }

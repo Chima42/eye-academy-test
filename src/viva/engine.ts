@@ -1,13 +1,6 @@
 import { replyForFindings } from '../case/format'
 import type { CaseFile, RevealedFinding } from '../case/types'
 
-/**
- * Viva stages:
- *   findings   -> trainee asks for findings, any number of turns
- *   diagnosis  -> trainee gives diagnosis + immediate management (one turn)
- *   follow_up  -> examiner has asked one follow-up; trainee answers (one turn)
- *   complete   -> viva over; the revision point is generated
- */
 export type Stage = 'findings' | 'diagnosis' | 'follow_up' | 'complete'
 
 export type Intent = 'finding_request' | 'too_broad' | 'ready_to_answer' | 'gives_answer' | 'repeat_request' | 'other'
@@ -15,7 +8,6 @@ export type Intent = 'finding_request' | 'too_broad' | 'ready_to_answer' | 'give
 export interface Classification {
   intent: Intent
   finding_ids: string[]
-  /** Tests asked for that the case doesn't list ("visual fields"), so the reply can say so. */
   not_in_case: string[]
 }
 
@@ -39,7 +31,6 @@ export interface ExaminerModel {
 export interface TurnInput {
   stage: Stage
   utterance: string
-  /** The trainee's diagnosis answer; needed when moving into the follow-up. */
   diagnosisAnswer?: string
   /** The follow-up already asked, so it can be repeated on request. */
   followUpQuestion?: string
@@ -47,16 +38,12 @@ export interface TurnInput {
 }
 
 export interface TurnResult {
-  /** What the examiner says (and shows). */
   spoken: string
-  /** Findings revealed this turn, as shown on screen. */
   revealed: RevealedFinding[]
   nextStage: Stage
   /** False when nothing usable was heard: the turn doesn't count. */
   counted: boolean
-  /** Set when this turn produced the follow-up question. */
   followUpQuestion?: string
-  /** Set when this turn was the trainee's diagnosis and management answer. */
   diagnosisAnswer?: string
 }
 
@@ -68,14 +55,13 @@ export const PROMPTS = {
   closing: "Thank you, that's the end of the viva. I'll put together a revision point for you.",
 }
 
-/** Too short to be a real request: silence, a cough, a stray "um". */
-function isEmpty(utterance: string): boolean {
+function isTooShortToCount(utterance: string): boolean {
   return utterance.replace(/[^\p{L}\p{N}]/gu, '').length < 2
 }
 
 export async function runTurn(viva: CaseFile, input: TurnInput, model: ExaminerModel): Promise<TurnResult> {
   const { stage, utterance } = input
-  if (isEmpty(utterance)) {
+  if (isTooShortToCount(utterance)) {
     return { spoken: PROMPTS.didntCatch, revealed: [], nextStage: stage, counted: false }
   }
   if (stage === 'complete') {
@@ -86,7 +72,6 @@ export async function runTurn(viva: CaseFile, input: TurnInput, model: ExaminerM
   const { intent } = classification
   const stay = (spoken: string): TurnResult => ({ spoken, revealed: [], nextStage: stage, counted: true })
 
-  // In every stage, an explicit request for a finding is answered from the case JSON.
   if (intent === 'finding_request') return findingsReply(viva, classification, stage)
 
   if (stage === 'findings') {
@@ -117,7 +102,6 @@ function findingsReply(viva: CaseFile, classification: Classification, stage: St
   return { spoken: reply.spoken, revealed: reply.revealed, nextStage: stage, counted: true }
 }
 
-/** The trainee's diagnosis and management: record it and ask the one follow-up. */
 async function answerDiagnosis(utterance: string, model: ExaminerModel): Promise<TurnResult> {
   const question = await model.writeFollowUp(utterance)
   return {

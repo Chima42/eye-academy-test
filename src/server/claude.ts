@@ -9,7 +9,6 @@ export const MODEL = 'claude-haiku-5-5'
 let client: Anthropic | null = null
 const anthropic = () => (client ??= new Anthropic())
 
-/** One structured-output call: the response is parsed and validated against `schema`. */
 export async function parseStructured<S extends z.ZodObject>(
   label: string,
   schema: S,
@@ -28,7 +27,6 @@ export async function parseStructured<S extends z.ZodObject>(
   return response.parsed_output as z.infer<S>
 }
 
-/** The case as the examiner knows it: opening prompt, expected diagnosis and key points. */
 export function caseBrief(viva: CaseFile): string {
   return `Case: ${viva.opening_prompt}
 Expected diagnosis: ${viva.examiner_notes.diagnosis}

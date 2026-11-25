@@ -123,5 +123,6 @@ Deliberately trying to break it, and a code review against the brief, found thes
 | Visual acuity, spoken | "6 36": the unit was dropped, and the voice read it as "six three six" | "six thirty-six Snellen" (checked by speaking it and transcribing it back) |
 | "Sorry, can you repeat the question?" during the follow-up | Taken as the answer: the viva ended | Repeats the follow-up |
 | "What's the pressure in the left eye?" after "Give my diagnosis" | Taken as the diagnosis | Answered; still waiting for the diagnosis |
+| "OCT", said on its own | Transcribed as "October" (Deepgram's `smart_format` formats dates), so the examiner asked again | Transcribed as "OCT"; the OCT finding is read out. `smart_format` replaced by `punctuate`, which also stops "six thirty-six" becoming "636" |
 
-Final live runs: 22/22 checks pass, three runs in a row.
+Final live runs: 22/22 checks passed three runs in a row. With the speech round-trip check added since, 23/23 pass.

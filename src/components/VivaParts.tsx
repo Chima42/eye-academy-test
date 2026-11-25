@@ -1,5 +1,5 @@
 import type { CaseFile, RevealedFinding } from '../case/types'
-import type { RevisionPoint, TranscriptEntry } from '../viva/attempt'
+import { citedPages, type RevisionPoint, type TranscriptEntry } from '../viva/attempt'
 import type { TurnStatus } from '../viva/useViva'
 
 const STATUS: Record<TurnStatus, { label: string; hint: string; icon: string; className: string }> = {
@@ -79,7 +79,6 @@ export function FindingsPanel({ findings, onCollapse }: { findings: RevealedFind
   )
 }
 
-/** The conversation as a list. The page puts it in its own scrolling region. */
 export function Transcript({ entries }: { entries: TranscriptEntry[] }) {
   return (
     <ol className="space-y-3 text-sm" aria-label="Transcript">
@@ -106,7 +105,7 @@ export function RevisionPanel({ revision }: { revision: RevisionPoint }) {
           <blockquote className="border-l-4 border-indigo-400 bg-indigo-50 px-3 py-2 text-sm italic">
             “{revision.excerpt}”
             <footer className="mt-1 not-italic font-medium">
-              Reference note, {(revision.pages?.length ?? 1) > 1 ? `pages ${revision.pages!.join('–')}` : `page ${revision.page}`}
+              Reference note, {citedPages(revision)}
             </footer>
           </blockquote>
         </>

@@ -8,13 +8,16 @@ const API = 'https://api.deepgram.com/v1'
 const STT_MODEL = 'nova-3'
 const TTS_MODEL = process.env.DEEPGRAM_VOICE ?? 'aura-2-thalia-en'
 
-function key(): string {
-  const k = process.env.DEEPGRAM_API_KEY
-  if (!k) throw new Error('DEEPGRAM_API_KEY is not set (add it to .env.local)')
-  return k
+function apiKey(): string {
+  const value = process.env.DEEPGRAM_API_KEY
+  if (!value) throw new Error('DEEPGRAM_API_KEY is not set (add it to .env.local)')
+  return value
 }
 
-/** Terms trainees say in their answers that aren't finding labels (from the reference note). */
+/**
+ * Terms trainees say that aren't finding labels, picked by hand: drugs, procedures and terms from the
+ * reference note and case file, plus the plurals trainees said in testing ("pupils", "pressures").
+ */
 const ANSWER_TERMS = [
   'pupils', 'pressures', 'Van Herick', 'IOP', 'RAPD', 'angle closure', 'iridotomy', 'iridoplasty', 'pilocarpine',
   'acetazolamide', 'timolol', 'apraclonidine', 'brimonidine', 'mannitol', 'prednisolone',
@@ -41,16 +44,18 @@ export async function transcribe(
   contentType: string,
   terms: string[],
 ): Promise<{ transcript: string; ms: number }> {
-  const params = new URLSearchParams({ model: STT_MODEL, smart_format: 'true', language: 'en' })
-  for (const t of terms) params.append('keyterm', t)
+  // punctuate, not smart_format: smart_format formats dates and numbers, so "OCT" said on its own
+  // became "October" and "six thirty-six" became "636".
+  const params = new URLSearchParams({ model: STT_MODEL, punctuate: 'true', language: 'en' })
+  for (const term of terms) params.append('keyterm', term)
   const started = performance.now()
-  const res = await fetch(`${API}/listen?${params}`, {
+  const response = await fetch(`${API}/listen?${params}`, {
     method: 'POST',
-    headers: { Authorization: `Token ${key()}`, 'Content-Type': contentType },
+    headers: { Authorization: `Token ${apiKey()}`, 'Content-Type': contentType },
     body: audio,
   })
-  if (!res.ok) throw new Error(`Deepgram STT ${res.status}: ${await res.text()}`)
-  const json = (await res.json()) as {
+  if (!response.ok) throw new Error(`Deepgram STT ${response.status}: ${await response.text()}`)
+  const json = (await response.json()) as {
     results?: { channels?: { alternatives?: { transcript?: string }[] }[] }
   }
   const transcript = json.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? ''
@@ -66,7 +71,7 @@ export async function speak(text: string): Promise<{ response: Response; msToHea
   const started = performance.now()
   const response = await fetch(`${API}/speak?${params}`, {
     method: 'POST',
-    headers: { Authorization: `Token ${key()}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Token ${apiKey()}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),
   })
   if (!response.ok) throw new Error(`Deepgram TTS ${response.status}: ${await response.text()}`)

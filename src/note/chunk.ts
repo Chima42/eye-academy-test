@@ -44,156 +44,155 @@ interface Block {
   text: string
 }
 
-const isHeaderOrFooter = (it: TextItem) => it.y > 800 || it.y < 30
-const H2 = (size: number) => size >= 14 && size < 20
-const H3 = (size: number) => size >= 11 && size < 14
-const TABLE_HEADER = (size: number) => size >= 8.55 && size < 8.9
-const TABLE_CELL = (size: number) => size >= 8.9 && size < 9.8
+const isHeaderOrFooter = (item: TextItem) => item.y > 800 || item.y < 30
+const isSectionHeading = (size: number) => size >= 14 && size < 20
+const isSubheading = (size: number) => size >= 11 && size < 14
+const isTableHeader = (size: number) => size >= 8.55 && size < 8.9
+const isTableCell = (size: number) => size >= 8.9 && size < 9.8
 
 /** Join items on one line, adding a space only where there's a visible gap. */
 function joinItems(items: TextItem[]): string {
   let out = ''
-  let prevEnd = -Infinity
-  for (const it of items) {
-    if (out && it.x > prevEnd + 1 && !out.endsWith(' ') && !it.str.startsWith(' ')) out += ' '
-    out += it.str
-    prevEnd = it.x + it.width
+  let previousEnd = -Infinity
+  for (const item of items) {
+    if (out && item.x > previousEnd + 1 && !out.endsWith(' ') && !item.str.startsWith(' ')) out += ' '
+    out += item.str
+    previousEnd = item.x + item.width
   }
   return out.replace(/\s+/g, ' ').trim()
 }
 
 /** Join wrapped lines: a trailing hyphen joins without a space ("non-pupil-" + "block"). */
 function joinLines(lines: string[]): string {
-  return lines.reduce((acc, l) => (!acc ? l : acc.endsWith('-') ? acc + l : `${acc} ${l}`), '')
+  return lines.reduce((joined, line) => (!joined ? line : joined.endsWith('-') ? joined + line : `${joined} ${line}`), '')
 }
 
 function toLines(items: TextItem[]): Line[] {
   const rows = new Map<number, TextItem[]>()
-  for (const it of items) {
-    if (!it.str.trim() || isHeaderOrFooter(it)) continue
-    const key = [...rows.keys()].find((y) => Math.abs(y - it.y) < 2) ?? it.y
-    rows.set(key, [...(rows.get(key) ?? []), it])
+  for (const item of items) {
+    if (!item.str.trim() || isHeaderOrFooter(item)) continue
+    const key = [...rows.keys()].find((y) => Math.abs(y - item.y) < 2) ?? item.y
+    rows.set(key, [...(rows.get(key) ?? []), item])
   }
   return [...rows.entries()]
     .sort((a, b) => b[0] - a[0])
-    .map(([y, its]) => {
-      const sorted = its.sort((a, b) => a.x - b.x)
-      return { y, x: sorted[0].x, size: Math.max(...sorted.map((i) => i.size)), text: joinItems(sorted), items: sorted }
+    .map(([y, lineItems]) => {
+      const sorted = lineItems.sort((a, b) => a.x - b.x)
+      return { y, x: sorted[0].x, size: Math.max(...sorted.map((item) => item.size)), text: joinItems(sorted), items: sorted }
     })
 }
 
-/** Split one page into blocks: paragraphs, bullets and table rows, tagged with their section. */
-function pageBlocks(page: number, lines: Line[], state: { h2: string; h3: string; started: boolean }): Block[] {
+function pageBlocks(page: number, lines: Line[], state: { heading: string; subheading: string; started: boolean }): Block[] {
   const blocks: Block[] = []
-  const section = () => (state.h3 ? `${state.h2} > ${state.h3}` : state.h2)
-  let para: string[] = []
-  let prevY = Infinity
+  const section = () => (state.subheading ? `${state.heading} > ${state.subheading}` : state.heading)
+  let paragraph: string[] = []
+  let previousY = Infinity
   let table: { columns: { name: string; x: number }[]; rows: Line[][] } | null = null
 
-  const flushPara = () => {
-    if (para.length) blocks.push({ page, section: section(), kind: 'text', text: joinLines(para) })
-    para = []
+  const flushParagraph = () => {
+    if (paragraph.length) blocks.push({ page, section: section(), kind: 'text', text: joinLines(paragraph) })
+    paragraph = []
   }
   const flushTable = () => {
     if (!table) return
     for (const row of table.rows) {
-      const cols = table.columns.map((c, i) => {
-        const next = table!.columns[i + 1]?.x ?? Infinity
-        const parts = row.flatMap((l) => l.items.filter((it) => it.x >= c.x - 3 && it.x < next - 3))
-        const lines = [...new Set(parts.map((p) => p.y))].sort((a, b) => b - a)
-        return `${c.name}: ${joinLines(lines.map((y) => joinItems(parts.filter((p) => p.y === y))))}`
+      const cells = table.columns.map((column, index) => {
+        const next = table!.columns[index + 1]?.x ?? Infinity
+        const cellItems = row.flatMap((rowLine) => rowLine.items.filter((item) => item.x >= column.x - 3 && item.x < next - 3))
+        const lines = [...new Set(cellItems.map((item) => item.y))].sort((a, b) => b - a)
+        return `${column.name}: ${joinLines(lines.map((y) => joinItems(cellItems.filter((item) => item.y === y))))}`
       })
-      blocks.push({ page, section: section(), kind: 'table_row', text: cols.join('. ') })
+      blocks.push({ page, section: section(), kind: 'table_row', text: cells.join('. ') })
     }
     table = null
   }
 
   for (const line of lines) {
-    const gap = prevY - line.y
-    prevY = line.y
-    if (H2(line.size)) {
-      flushPara(); flushTable()
-      state.h2 = line.text; state.h3 = ''; state.started = true
+    const gap = previousY - line.y
+    previousY = line.y
+    if (isSectionHeading(line.size)) {
+      flushParagraph(); flushTable()
+      state.heading = line.text; state.subheading = ''; state.started = true
       continue
     }
     if (!state.started) continue // title and tag pills before the first section
-    if (H3(line.size)) {
-      flushPara(); flushTable()
-      state.h3 = line.text
+    if (isSubheading(line.size)) {
+      flushParagraph(); flushTable()
+      state.subheading = line.text
       continue
     }
-    if (TABLE_HEADER(line.size)) {
-      flushPara(); flushTable()
-      table = { columns: line.items.map((it) => ({ name: it.str.trim(), x: it.x })), rows: [] }
+    if (isTableHeader(line.size)) {
+      flushParagraph(); flushTable()
+      table = { columns: line.items.map((item) => ({ name: item.str.trim(), x: item.x })), rows: [] }
       continue
     }
-    if (TABLE_CELL(line.size) && table) {
+    if (isTableCell(line.size) && table) {
       if (table.rows.length === 0 || gap > 20) table.rows.push([line])
       else table.rows[table.rows.length - 1].push(line)
       continue
     }
     flushTable()
     // Body text: ~16.5pt between wrapped lines, ~19pt between bullets, ~25pt between paragraphs.
-    if (gap > 17.8) flushPara()
-    para.push(line.text)
+    if (gap > 17.8) flushParagraph()
+    paragraph.push(line.text)
   }
-  flushPara(); flushTable()
+  flushParagraph(); flushTable()
   return blocks
 }
 
-const endsSentence = (t: string) => /[.?!:)]$/.test(t.trim())
+const endsSentence = (text: string) => /[.?!:)]$/.test(text.trim())
 
 export function chunkNote(pages: TextItem[][]): Chunk[] {
-  const state = { h2: '', h3: '', started: false }
-  const perPage = pages.map((items, i) => pageBlocks(i + 1, toLines(items), state))
+  const state = { heading: '', subheading: '', started: false }
+  const perPage = pages.map((items, index) => pageBlocks(index + 1, toLines(items), state))
 
   // Flatten, merging a paragraph that runs over a page break into one chunk with two page spans.
   const merged: { section: string; kind: Block['kind']; text: string; spans: PageSpan[] }[] = []
-  perPage.forEach((blocks, pi) => {
-    blocks.forEach((b, bi) => {
-      const prev = merged.at(-1)
+  perPage.forEach((blocks, pageIndex) => {
+    blocks.forEach((block, blockIndex) => {
+      const previous = merged.at(-1)
       // Bullets often lack a full stop, so also require the next page to start mid-sentence
       // (lowercase or a digit: page 6 starts "250 mg four times a day...").
       const continuesFromLastPage =
-        bi === 0 && pi > 0 && prev && prev.kind === 'text' && b.kind === 'text' &&
-        !endsSentence(prev.text) && /^[a-z0-9]/.test(b.text)
+        blockIndex === 0 && pageIndex > 0 && previous && previous.kind === 'text' && block.kind === 'text' &&
+        !endsSentence(previous.text) && /^[a-z0-9]/.test(block.text)
       if (continuesFromLastPage) {
-        const start = prev.text.length + 1
-        prev.text = `${prev.text} ${b.text}`
-        prev.spans.push({ page: b.page, start, end: prev.text.length })
+        const start = previous.text.length + 1
+        previous.text = `${previous.text} ${block.text}`
+        previous.spans.push({ page: block.page, start, end: previous.text.length })
       } else {
-        merged.push({ section: b.section, kind: b.kind, text: b.text, spans: [{ page: b.page, start: 0, end: b.text.length }] })
+        merged.push({ section: block.section, kind: block.kind, text: block.text, spans: [{ page: block.page, start: 0, end: block.text.length }] })
       }
     })
   })
 
   // Combine runs of very short bullets in the same section and page ("Female sex") so each chunk has context.
   const combined: typeof merged = []
-  for (const m of merged) {
-    const prev = combined.at(-1)
-    const short = (t: string) => t.length < 120
+  for (const entry of merged) {
+    const previous = combined.at(-1)
+    const short = (text: string) => text.length < 120
     if (
-      prev && m.kind === 'text' && prev.kind === 'text' && prev.section === m.section &&
-      prev.spans.length === 1 && m.spans.length === 1 && prev.spans[0].page === m.spans[0].page &&
-      short(m.text) && (short(prev.text) || prev.text.endsWith(':')) && prev.text.length + m.text.length < 400
+      previous && entry.kind === 'text' && previous.kind === 'text' && previous.section === entry.section &&
+      previous.spans.length === 1 && entry.spans.length === 1 && previous.spans[0].page === entry.spans[0].page &&
+      short(entry.text) && (short(previous.text) || previous.text.endsWith(':')) && previous.text.length + entry.text.length < 400
     ) {
-      prev.text = `${prev.text}; ${m.text}`
-      prev.spans[0].end = prev.text.length
-    } else combined.push({ ...m, spans: m.spans.map((s) => ({ ...s })) })
+      previous.text = `${previous.text}; ${entry.text}`
+      previous.spans[0].end = previous.text.length
+    } else combined.push({ ...entry, spans: entry.spans.map((span) => ({ ...span })) })
   }
 
   const counters = new Map<number, number>()
-  return combined.map((m) => {
-    const first = m.spans[0].page
-    const n = (counters.get(first) ?? 0) + 1
-    counters.set(first, n)
+  return combined.map((entry) => {
+    const firstPage = entry.spans[0].page
+    const count = (counters.get(firstPage) ?? 0) + 1
+    counters.set(firstPage, count)
     return {
-      id: `p${first}-${n}`,
-      section: m.section,
-      kind: m.kind,
-      text: m.text,
-      pages: [...new Set(m.spans.map((s) => s.page))],
-      pageSpans: m.spans,
+      id: `p${firstPage}-${count}`,
+      section: entry.section,
+      kind: entry.kind,
+      text: entry.text,
+      pages: [...new Set(entry.spans.map((span) => span.page))],
+      pageSpans: entry.spans,
     }
   })
 }
@@ -205,14 +204,14 @@ export function chunkNote(pages: TextItem[][]): Chunk[] {
 export function findAbbreviations(texts: string[]): Map<string, string> {
   const found = new Map<string, string>()
   for (const text of texts) {
-    for (const m of text.matchAll(/((?:[\w-]+\s+){0,6})\(([A-Z][A-Za-z]{1,5})\)/g)) {
-      const abbr = m[2]
-      if (found.has(abbr) || abbr.length < 2) continue
-      const words = m[1].trim().split(/\s+/)
-      for (let k = Math.min(abbr.length, words.length); k >= 1; k--) {
-        const phrase = words.slice(-k)
-        if (phrase[0][0]?.toLowerCase() === abbr[0].toLowerCase()) {
-          found.set(abbr, phrase.join(' ').replace(/[^\w\s-]/g, ''))
+    for (const match of text.matchAll(/((?:[\w-]+\s+){0,6})\(([A-Z][A-Za-z]{1,5})\)/g)) {
+      const abbreviation = match[2]
+      if (found.has(abbreviation) || abbreviation.length < 2) continue
+      const words = match[1].trim().split(/\s+/)
+      for (let wordCount = Math.min(abbreviation.length, words.length); wordCount >= 1; wordCount--) {
+        const phrase = words.slice(-wordCount)
+        if (phrase[0][0]?.toLowerCase() === abbreviation[0].toLowerCase()) {
+          found.set(abbreviation, phrase.join(' ').replace(/[^\w\s-]/g, ''))
           break
         }
       }
@@ -224,47 +223,46 @@ export function findAbbreviations(texts: string[]): Map<string, string> {
 /** Text used for embedding only: bare abbreviations get their expansion appended. */
 export function expandForEmbedding(text: string, abbreviations: Map<string, string>): string {
   let out = text
-  for (const [abbr, long] of abbreviations) {
-    out = out.replace(new RegExp(`\\b${abbr}\\b(?!\\))`, 'g'), `${abbr} (${long})`)
+  for (const [abbreviation, expansion] of abbreviations) {
+    out = out.replace(new RegExp(`\\b${abbreviation}\\b(?!\\))`, 'g'), `${abbreviation} (${expansion})`)
   }
   return out
 }
 
 /**
  * Normalise for comparison: quote styles, dashes, whitespace and case vary between the PDF text
- * and the model's copy. `map[i]` is the index in the original text of normalised character i.
+ * and the model's copy. `originalIndex[i]` is the index in the original text of normalised character i.
  */
-function normaliseWithMap(t: string): { norm: string; map: number[] } {
-  let norm = ''
-  const map: number[] = []
-  for (let i = 0; i < t.length; i++) {
-    let c = t[i]
-    if (/\s/.test(c)) {
-      if (norm === '' || norm.endsWith(' ')) continue // trim leading, collapse runs
-      c = ' '
-    } else if (c === '\u2018' || c === '\u2019') c = "'"
-    else if (c === '\u201c' || c === '\u201d') c = '"'
-    else if (c === '\u2013' || c === '\u2014') c = '-'
+function normaliseWithMap(text: string): { normalised: string; originalIndex: number[] } {
+  let normalised = ''
+  const originalIndex: number[] = []
+  for (let index = 0; index < text.length; index++) {
+    let character = text[index]
+    if (/\s/.test(character)) {
+      if (normalised === '' || normalised.endsWith(' ')) continue
+      character = ' '
+    } else if (character === '\u2018' || character === '\u2019') character = "'"
+    else if (character === '\u201c' || character === '\u201d') character = '"'
+    else if (character === '\u2013' || character === '\u2014') character = '-'
     else {
-      const lower = c.toLowerCase()
-      if (lower.length === 1) c = lower
+      const lower = character.toLowerCase()
+      if (lower.length === 1) character = lower
     }
-    norm += c
-    map.push(i)
+    normalised += character
+    originalIndex.push(index)
   }
-  if (norm.endsWith(' ')) {
-    norm = norm.slice(0, -1)
-    map.pop()
+  if (normalised.endsWith(' ')) {
+    normalised = normalised.slice(0, -1)
+    originalIndex.pop()
   }
-  return { norm, map }
+  return { normalised, originalIndex }
 }
 
-export const normalise = (t: string): string => normaliseWithMap(t).norm
+export const normalise = (text: string): string => normaliseWithMap(text).normalised
 
 export interface LocatedExcerpt {
   /** The quote as printed in the note (not the model's copy of it). */
   text: string
-  /** Every page the quote is printed on; usually one. */
   pages: number[]
 }
 
@@ -275,11 +273,11 @@ export interface LocatedExcerpt {
 export function locateExcerpt(chunk: Pick<Chunk, 'text' | 'pageSpans'>, excerpt: string): LocatedExcerpt | null {
   const needle = normalise(excerpt.replace(/^["“']|["”']$/g, '').replace(/\.\.\.$|…$/, ''))
   if (needle.length < 12) return null
-  const { norm, map } = normaliseWithMap(chunk.text)
-  const at = norm.indexOf(needle)
-  if (at === -1) return null
-  const start = map[at]
-  const end = map[at + needle.length - 1] + 1
-  const pages = chunk.pageSpans.filter((s) => s.start < end && s.end > start).map((s) => s.page)
+  const { normalised, originalIndex } = normaliseWithMap(chunk.text)
+  const position = normalised.indexOf(needle)
+  if (position === -1) return null
+  const start = originalIndex[position]
+  const end = originalIndex[position + needle.length - 1] + 1
+  const pages = chunk.pageSpans.filter((span) => span.start < end && span.end > start).map((span) => span.page)
   return { text: chunk.text.slice(start, end), pages: pages.length ? pages : [chunk.pageSpans[0].page] }
 }

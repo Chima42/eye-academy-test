@@ -85,7 +85,6 @@ describe('every finding in the case', () => {
       expect(spoken.startsWith(eye)).toBe(true)
     }
     if (f.available && f.value !== null) {
-      // The value appears on screen exactly as written in the case.
       expect(display).toContain(String(f.value))
       // Every number in the value is also spoken, except where an allowlisted
       // expansion turns it into words ("1/4" -> "a quarter").
