@@ -23,12 +23,20 @@ export async function createAttempt(uid: string): Promise<string> {
 }
 
 /** Saved after every turn, so a refresh restores the attempt exactly. */
-export async function saveAttempt(uid: string, id: string, attempt: Attempt): Promise<void> {
-  await setDoc(doc(attemptsOf(uid), id), { ...attempt, updatedAt: Date.now() })
+/** Where one attempt lives: its owner and its id. */
+export interface AttemptKey {
+  uid: string
+  attemptId: string
 }
 
-export async function getAttempt(uid: string, id: string): Promise<Attempt | null> {
-  const snap = await getDoc(doc(attemptsOf(uid), id))
+const attemptDoc = (key: AttemptKey) => doc(attemptsOf(key.uid), key.attemptId)
+
+export async function saveAttempt(key: AttemptKey, attempt: Attempt): Promise<void> {
+  await setDoc(attemptDoc(key), { ...attempt, updatedAt: Date.now() })
+}
+
+export async function getAttempt(key: AttemptKey): Promise<Attempt | null> {
+  const snap = await getDoc(attemptDoc(key))
   return snap.exists() ? (snap.data() as Attempt) : null
 }
 

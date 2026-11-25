@@ -42,7 +42,7 @@ function useFindingsOpen(): [boolean, (open: boolean) => void] {
 }
 
 function Viva({ uid, attemptId }: { uid: string; attemptId: string }) {
-  const session = useViva(uid, attemptId)
+  const session = useViva({ uid, attemptId })
   const [text, setText] = useState('')
   const [findingsOpen, setFindingsOpen] = useFindingsOpen()
   const { attempt, status } = session
