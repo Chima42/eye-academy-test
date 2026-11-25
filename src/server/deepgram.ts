@@ -41,7 +41,9 @@ export async function transcribe(
   contentType: string,
   terms: string[],
 ): Promise<{ transcript: string; ms: number }> {
-  const params = new URLSearchParams({ model: STT_MODEL, smart_format: 'true', language: 'en' })
+  // punctuate, not smart_format: smart_format formats dates and numbers, so "OCT" said on its own
+  // became "October" and "six thirty-six" became "636".
+  const params = new URLSearchParams({ model: STT_MODEL, punctuate: 'true', language: 'en' })
   for (const t of terms) params.append('keyterm', t)
   const started = performance.now()
   const res = await fetch(`${API}/listen?${params}`, {
