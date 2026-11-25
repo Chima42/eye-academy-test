@@ -43,10 +43,7 @@ export interface RevealedFinding {
   display: string
 }
 
-/** The examiner's reply to one findings request. */
 export interface FindingsReply {
-  /** Findings that matched the request, as shown on screen. Empty when nothing matched. */
   revealed: RevealedFinding[]
-  /** Text the examiner speaks. */
   spoken: string
 }

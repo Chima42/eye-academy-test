@@ -9,7 +9,6 @@ const RevisionInputSchema = z.object({
   followUpAnswer: z.string().max(4000),
 })
 
-/** After the viva: one revision point from the reference note, with page and excerpt. */
 export const generateRevisionPoint = createServerFn({ method: 'POST' })
   .validator(RevisionInputSchema)
   .handler(async ({ data }) => revisionPoint(viva, data))

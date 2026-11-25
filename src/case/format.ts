@@ -21,7 +21,6 @@ function isBareMeasurement(value: string | number): boolean {
   return typeof value === 'number' || /^[\d.+\-/ ]+$/.test(value.trim())
 }
 
-/** The value with its unit, exactly as written in the case. Null when the finding has no value. */
 export function valueWithUnit(finding: Finding): string | null {
   const { value, unit } = finding
   if (value === null || value === undefined) return null
@@ -45,7 +44,6 @@ const ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'ei
   'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen']
 const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety']
 
-/** 0-99 in words ("36" -> "thirty-six"); larger numbers stay as digits. */
 export function numberToWords(n: number): string {
   if (!Number.isInteger(n) || n < 0 || n > 99) return String(n)
   if (n < 20) return ONES[n]
@@ -65,7 +63,7 @@ function expandForSpeech(text: string, unit: string | null): string {
     )
   }
   out = out
-    .replace(/(\d+)\/(\d+)\s*mmHg/g, '$1 over $2 mmHg') // blood pressure
+    .replace(/(\d+)\/(\d+)\s*mmHg/g, '$1 over $2 mmHg')
     .replace(/\bmmHg\b/g, 'millimetres of mercury')
     .replace(/\bmm\b/g, 'millimetres')
     .replace(/\bDS\b/g, 'dioptres sphere')
@@ -79,7 +77,6 @@ function midSentence(label: string): string {
   return /^[A-Z][a-z]/.test(label) ? label[0].toLowerCase() + label.slice(1) : label
 }
 
-/** Spoken text for one finding: eye first, then label, then value. */
 export function spokenText(finding: Finding): string {
   const eye = eyeDisplay(finding.eye)
   const label = eye ? midSentence(finding.label) : finding.label
