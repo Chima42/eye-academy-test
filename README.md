@@ -70,14 +70,16 @@ Built in about 3 hours over one session, not counting reading the brief and plan
   to their owner. Another user's attempt URL shows "Attempt not found". A load failure (e.g. emulators not running) says so instead.
   The attempts list separates in-progress vivas (with Continue) from completed ones, which show what to revise and
   can expand the full revision point in place.
+- **Signed-in requests only.** Every route that spends API credit (`/api/transcribe`, `/api/speak`, and the examiner
+  and revision server functions) needs the user's Firebase ID token. The server verifies it with the Admin SDK (against the
+  Auth emulator locally) and returns 401 without a valid one. Recordings over about 2 MB are refused.
 - **Revision point.** After the viva, one revision point with a page number and a word-for-word excerpt
   from the reference note, or a clear "no support found".
 - **Recovery.** A text box takes the place of voice (noisy room, no mic). An empty transcript gets "Sorry, I didn't
   catch that" and doesn't count as a turn. API errors show a message without losing the attempt. "Repeat last" replays the examiner.
 
 **Where I stopped / known gaps**
-- The server routes (`/api/transcribe`, `/api/speak`, server functions) don't verify the Firebase ID token.
-  That's acceptable for a local demo, but a deployed version must, because they spend API credit.
+- Any signed-in account can spend API credit: there's no per-user rate limit or quota. A deployed version would add one.
 - A turn is saved when the examiner's reply arrives. Refreshing while the examiner is thinking loses that one
   turn. Two tabs on the same attempt overwrite each other (last write wins).
 - Speech-to-text still mishears some drug names despite keyterms ("apraclonidine" → "apradunavol", "acetazolamide" → "acetazolol"),

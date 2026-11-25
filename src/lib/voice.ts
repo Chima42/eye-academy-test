@@ -1,3 +1,5 @@
+import { authHeaders } from './firebase'
+
 export class Recorder {
   private stream: MediaStream | null = null
   private recorder: MediaRecorder | null = null
@@ -40,7 +42,7 @@ function serverTiming(header: string | null, name: string): number | undefined {
 export async function transcribeBlob(blob: Blob): Promise<{ transcript: string; sttMs?: number }> {
   const response = await fetch('/api/transcribe', {
     method: 'POST',
-    headers: { 'Content-Type': blob.type || 'audio/webm' },
+    headers: { ...(await authHeaders()), 'Content-Type': blob.type || 'audio/webm' },
     body: blob,
   })
   const json = (await response.json()) as { transcript?: string; error?: string }
@@ -48,56 +50,66 @@ export async function transcribeBlob(blob: Blob): Promise<{ transcript: string; 
   return { transcript: json.transcript ?? '', sttMs: serverTiming(response.headers.get('server-timing'), 'stt') }
 }
 
+async function requestSpeech(text: string): Promise<Response> {
+  const response = await fetch('/api/speak', {
+    method: 'POST',
+    headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+  if (!response.ok || !response.body) throw new Error('Text-to-speech failed')
+  return response
+}
+
 let currentAudio: HTMLAudioElement | null = null
 
 const canStream = () => typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported('audio/mpeg')
+
+const mediaSourceOpen = (mediaSource: MediaSource) =>
+  new Promise<void>((resolve) => mediaSource.addEventListener('sourceopen', () => resolve(), { once: true }))
 
 /**
  * Feed the MP3 into the <audio> element chunk by chunk as it arrives (Media Source Extensions).
  * A plain <audio src> buffered ~2.5 s before playing even though the first audio bytes arrived in
  * ~0.3 s; appending chunks ourselves lets playback start on the first one.
  */
-function streamInto(audio: HTMLAudioElement, url: string, onHeaders: (response: Response) => void): void {
+async function streamInto(audio: HTMLAudioElement, speech: Promise<Response>): Promise<void> {
   const mediaSource = new MediaSource()
   audio.src = URL.createObjectURL(mediaSource)
-  mediaSource.addEventListener(
-    'sourceopen',
-    async () => {
-      try {
-        const sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg')
-        const response = await fetch(url)
-        onHeaders(response)
-        if (!response.ok || !response.body) throw new Error('Text-to-speech failed')
-        const reader = response.body.getReader()
-        let started = false
-        for (;;) {
-          const { done, value } = await reader.read()
-          if (done) break
-          await new Promise<void>((resolve) => {
-            sourceBuffer.addEventListener('updateend', () => resolve(), { once: true })
-            sourceBuffer.appendBuffer(value)
-          })
-          if (!started) {
-            started = true
-            audio.play().catch(() => {})
-          }
-        }
-        if (mediaSource.readyState === 'open') mediaSource.endOfStream()
-      } catch {
-        audio.dispatchEvent(new Event('error'))
-      }
-    },
-    { once: true },
-  )
+  const [response] = await Promise.all([speech, mediaSourceOpen(mediaSource)])
+  const sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg')
+  const reader = response.body!.getReader()
+  let started = false
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    await new Promise<void>((resolve) => {
+      sourceBuffer.addEventListener('updateend', () => resolve(), { once: true })
+      sourceBuffer.appendBuffer(value)
+    })
+    if (!started) {
+      started = true
+      audio.play().catch(() => {})
+    }
+  }
+  if (mediaSource.readyState === 'open') mediaSource.endOfStream()
 }
 
-/**
- * Speak text through /api/speak. `started` resolves when audio starts playing (the end of the
- * timed voice turn); `ended` when it finishes. `ttsFirstByteMs()` is the server's measurement.
- */
-export function speak(text: string): { started: Promise<void>; ended: Promise<void>; ttsFirstByteMs: () => number | undefined } {
+/** Fallback for browsers without MSE for MP3: download the whole clip, then play it. */
+async function playWhenDownloaded(audio: HTMLAudioElement, speech: Promise<Response>): Promise<void> {
+  audio.src = URL.createObjectURL(await (await speech).blob())
+  await audio.play()
+}
+
+export interface Speech {
+  /** Resolves when audio starts playing (the end of a timed voice turn). */
+  started: Promise<void>
+  ended: Promise<void>
+  /** Deepgram's time to first byte, measured on the server. */
+  ttsFirstByteMs: () => number | undefined
+}
+
+export function speak(text: string): Speech {
   currentAudio?.pause()
-  const url = `/api/speak?text=${encodeURIComponent(text)}`
   const audio = new Audio()
   currentAudio = audio
   let ttsHeader: string | null = null
@@ -112,14 +124,25 @@ export function speak(text: string): { started: Promise<void>; ended: Promise<vo
     audio.addEventListener('pause', () => resolve(), { once: true })
   })
 
-  if (canStream()) {
-    streamInto(audio, url, (response) => (ttsHeader = response.headers.get('server-timing')))
-  } else {
-    // Fallback (e.g. browsers without MSE for MP3): let the element fetch and buffer itself.
-    audio.src = url
-    audio.play().catch(() => {})
-  }
+  const speech = requestSpeech(text).then((response) => {
+    ttsHeader = response.headers.get('server-timing')
+    return response
+  })
+  const play = canStream() ? streamInto(audio, speech) : playWhenDownloaded(audio, speech)
+  play.catch(() => audio.dispatchEvent(new Event('error')))
   return { started, ended, ttsFirstByteMs: () => serverTiming(ttsHeader, 'tts_first_byte') }
+}
+
+/** When playback started, or null if the audio failed. Waits until it has finished. */
+export async function untilSpoken(speech: Speech): Promise<{ playingAt: number } | null> {
+  try {
+    await speech.started
+    const playingAt = performance.now()
+    await speech.ended
+    return { playingAt }
+  } catch {
+    return null
+  }
 }
 
 export function stopSpeaking(): void {

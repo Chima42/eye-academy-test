@@ -80,7 +80,8 @@ systemic hypertension…", retrieved `p5-14`, `p5-10`, `p5-12`, `p6-10`, `p1-4`.
 
 ## Privacy check
 
-`npm run check:privacy` signs up two users in the Auth emulator and calls Firestore's REST API with each user's token.
+`npm run check:privacy` signs up two users in the Auth emulator and calls Firestore's REST API with each user's token,
+then calls the app's API routes with and without a valid token (no audio is sent, so it costs nothing).
 
 | Request | Expected | Observed |
 |---|---|---|
@@ -90,6 +91,9 @@ systemic hypertension…", retrieved `p5-14`, `p5-10`, `p5-12`, `p6-10`, `p1-4`.
 | B lists A's attempts | 403 | 403 |
 | B writes into A's attempts | 403 | 403 |
 | Signed out, reads A's attempt | 403 | 403 |
+| Signed out, `/api/transcribe` | 401 | 401 |
+| Forged token, `/api/speak` | 401 | 401 |
+| Signed in, `/api/transcribe` (empty recording) | 200 | 200 |
 
 ## Manual voice runs
 

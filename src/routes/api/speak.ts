@@ -1,18 +1,20 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { z } from 'zod'
 import { speak } from '../../server/deepgram'
+import { signedInUid, signInRequired } from '../../server/verify-id-token'
 
-/**
- * GET /api/speak?text=... -> streaming MP3.
- * A GET URL lets an <audio> element start playing while the audio is still arriving.
- */
+const SpeakRequestSchema = z.object({ text: z.string().min(1).max(2000) })
+
+/** POST { text } -> streaming MP3, so the browser can start playing while the audio is still arriving. */
 export const Route = createFileRoute('/api/speak')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
-        const text = new URL(request.url).searchParams.get('text')?.slice(0, 2000)
-        if (!text) return new Response('Missing text', { status: 400 })
+      POST: async ({ request }) => {
+        if (!(await signedInUid(request))) return signInRequired()
+        const parsed = SpeakRequestSchema.safeParse(await request.json().catch(() => null))
+        if (!parsed.success) return Response.json({ error: 'Expected { text }' }, { status: 400 })
         try {
-          const { response, msToHeaders } = await speak(text)
+          const { response, msToHeaders } = await speak(parsed.data.text)
           return new Response(response.body, {
             headers: {
               'Content-Type': 'audio/mpeg',
@@ -20,9 +22,9 @@ export const Route = createFileRoute('/api/speak')({
               'Server-Timing': `tts_first_byte;dur=${msToHeaders.toFixed(0)}`,
             },
           })
-        } catch (err) {
-          console.error(err)
-          return new Response('Text-to-speech failed', { status: 502 })
+        } catch (caught) {
+          console.error(caught)
+          return Response.json({ error: 'Text-to-speech failed' }, { status: 502 })
         }
       },
     },
