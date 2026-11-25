@@ -1,5 +1,14 @@
+import { z } from 'zod'
 import type { RevealedFinding } from '../case/types'
-import type { Stage } from './engine'
+import type { PreviousRequest, Stage, TurnResult } from './engine'
+
+/** The trainee's answers the revision point is based on. */
+export const RevisionInputSchema = z.object({
+  diagnosisAnswer: z.string().max(4000),
+  followUpQuestion: z.string().max(1000).optional(),
+  followUpAnswer: z.string().max(4000),
+})
+export type RevisionInput = z.infer<typeof RevisionInputSchema>
 
 export interface TranscriptEntry {
   role: 'examiner' | 'trainee'
@@ -76,8 +85,59 @@ export function citedPages(revision: Extract<RevisionPoint, { status: 'supported
   return pages.length > 1 ? `pages ${pages.join('–')}` : `page ${pages[0]}`
 }
 
+export const needsRevisionPoint = (attempt: Attempt) => attempt.stage === 'complete' && !attempt.revision
+
+export function revisionInputOf(attempt: Attempt): RevisionInput {
+  return {
+    diagnosisAnswer: attempt.diagnosisAnswer ?? '',
+    followUpQuestion: attempt.followUpQuestion,
+    followUpAnswer: attempt.followUpAnswer ?? '',
+  }
+}
+
 /** Add newly revealed findings, keeping the first snapshot of each. */
 export function mergeRevealed(existing: RevealedFinding[], added: RevealedFinding[]): RevealedFinding[] {
   const seen = new Set(existing.map((f) => f.id))
   return [...existing, ...added.filter((f) => !seen.has(f.id))]
+}
+
+/** The trainee's last findings request and what it revealed, for follow-ons like "and the left?". */
+export function previousRequest(attempt: Attempt): PreviousRequest | undefined {
+  if (attempt.stage !== 'findings') return undefined
+  let lastTrainee = attempt.transcript.length - 1
+  while (lastTrainee >= 0 && attempt.transcript[lastTrainee].role !== 'trainee') lastTrainee--
+  if (lastTrainee < 0) return undefined
+  const reply = attempt.transcript[lastTrainee + 1]
+  return {
+    utterance: attempt.transcript[lastTrainee].text,
+    findingIds: reply?.revealed?.map((finding) => finding.id) ?? [],
+  }
+}
+
+export interface TraineeUtterance {
+  text: string
+  source: 'voice' | 'text'
+}
+
+export interface CompletedTurn {
+  utterance: TraineeUtterance
+  result: TurnResult
+  at: number
+}
+
+/** The attempt after one exchange: transcript, revealed findings, stage and answers. */
+export function withTurn(attempt: Attempt, turn: CompletedTurn): Attempt {
+  const { utterance, result, at } = turn
+  const entries: TranscriptEntry[] = []
+  if (result.counted) entries.push({ role: 'trainee', text: utterance.text, at, source: utterance.source })
+  entries.push({ role: 'examiner', text: result.spoken, at, revealed: result.revealed })
+  return {
+    ...attempt,
+    stage: result.nextStage,
+    transcript: [...attempt.transcript, ...entries],
+    revealed: mergeRevealed(attempt.revealed, result.revealed),
+    diagnosisAnswer: result.diagnosisAnswer ?? attempt.diagnosisAnswer,
+    followUpQuestion: result.followUpQuestion ?? attempt.followUpQuestion,
+    followUpAnswer: attempt.stage === 'follow_up' && result.counted ? utterance.text : attempt.followUpAnswer,
+  }
 }

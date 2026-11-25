@@ -39,11 +39,13 @@ export function keyterms(viva: CaseFile): string[] {
   return [...new Set([...fromLabels, ...ANSWER_TERMS])].slice(0, 50)
 }
 
-export async function transcribe(
-  audio: ArrayBuffer,
-  contentType: string,
-  terms: string[],
-): Promise<{ transcript: string; ms: number }> {
+export interface Recording {
+  audio: ArrayBuffer
+  contentType: string
+}
+
+export async function transcribe(recording: Recording, terms: string[]): Promise<{ transcript: string; ms: number }> {
+  const { audio, contentType } = recording
   // punctuate, not smart_format: smart_format formats dates and numbers, so "OCT" said on its own
   // became "October" and "six thirty-six" became "636".
   const params = new URLSearchParams({ model: STT_MODEL, punctuate: 'true', language: 'en' })

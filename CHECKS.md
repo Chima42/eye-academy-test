@@ -80,7 +80,8 @@ systemic hypertension…", retrieved `p5-14`, `p5-10`, `p5-12`, `p6-10`, `p1-4`.
 
 ## Privacy check
 
-`npm run check:privacy` signs up two users in the Auth emulator and calls Firestore's REST API with each user's token.
+`npm run check:privacy` signs up two users in the Auth emulator and calls Firestore's REST API with each user's token,
+then calls the app's API routes with and without a valid token (no audio is sent, so it costs nothing).
 
 | Request | Expected | Observed |
 |---|---|---|
@@ -90,6 +91,9 @@ systemic hypertension…", retrieved `p5-14`, `p5-10`, `p5-12`, `p6-10`, `p1-4`.
 | B lists A's attempts | 403 | 403 |
 | B writes into A's attempts | 403 | 403 |
 | Signed out, reads A's attempt | 403 | 403 |
+| Signed out, `/api/transcribe` | 401 | 401 |
+| Forged token, `/api/speak` | 401 | 401 |
+| Signed in, `/api/transcribe` (empty recording) | 200 | 200 |
 
 ## Manual voice runs
 
@@ -126,3 +130,5 @@ Deliberately trying to break it, and a code review against the brief, found thes
 | "OCT", said on its own | Transcribed as "October" (Deepgram's `smart_format` formats dates), so the examiner asked again | Transcribed as "OCT"; the OCT finding is read out. `smart_format` replaced by `punctuate`, which also stops "six thirty-six" becoming "636" |
 
 Final live runs: 22/22 checks passed three runs in a row. With the speech round-trip check added since, 23/23 pass.
+After the refactor (server-side auth, smaller function signatures, `useViva` split), 23/23 pass again.
+The examiner server function was also called directly: 401 without a token or with a forged one, 200 when signed in.

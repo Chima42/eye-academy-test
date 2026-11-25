@@ -2,14 +2,8 @@ import { z } from 'zod'
 import type { CaseFile } from '../case/types'
 import { locateExcerpt } from '../note/chunk'
 import { retrieve, summarise } from '../note/retrieve'
-import type { RevisionPoint } from '../viva/attempt'
+import type { RevisionInput, RevisionPoint } from '../viva/attempt'
 import { caseBrief, parseStructured } from './claude'
-
-export interface RevisionInput {
-  diagnosisAnswer: string
-  followUpQuestion?: string
-  followUpAnswer: string
-}
 
 /** "A short supporting excerpt": the model is asked for 10-40 words; longer quotes are rejected. */
 export const MAX_EXCERPT_WORDS = 50
@@ -18,6 +12,8 @@ const GapSchema = z.object({
   gap: z.string().describe('The single most important thing the trainee missed or got wrong, in under 12 words'),
   query: z.string().describe('A search query for a revision note that would find the passage explaining this'),
 })
+/** What the revision point should cover, and the query that finds it in the note. */
+export type RevisionFocus = z.infer<typeof GapSchema>
 
 const PointSchema = z.object({
   supported: z.boolean(),
@@ -37,16 +33,16 @@ function answers(input: RevisionInput): string {
     .join('\n')
 }
 
-export function findGap(viva: CaseFile, input: RevisionInput) {
-  return parseStructured(
-    'Gap step',
-    GapSchema,
-    `You review a trainee's answers in an ophthalmology practice viva.
+export function findGap(viva: CaseFile, input: RevisionInput): Promise<RevisionFocus> {
+  return parseStructured({
+    label: 'Gap step',
+    schema: GapSchema,
+    system: `You review a trainee's answers in an ophthalmology practice viva.
 ${caseBrief(viva)}
 
 Identify the single most important key point the trainee missed or got wrong. If they covered everything, pick the point where their reasoning was weakest.`,
-    answers(input),
-  )
+    content: answers(input),
+  })
 }
 
 /**
@@ -55,11 +51,15 @@ Identify the single most important key point the trainee missed or got wrong. If
  * retrieved passage, and the cited page is where that excerpt is printed.
  */
 export async function revisionPoint(viva: CaseFile, input: RevisionInput): Promise<RevisionPoint> {
-  const { gap, query } = await findGap(viva, input)
-  return pointFromNote(viva, input, gap, query)
+  const focus = await findGap(viva, input)
+  return pointFromNote(viva, { answers: input, focus })
 }
 
-export async function pointFromNote(viva: CaseFile, input: RevisionInput, gap: string, query: string): Promise<RevisionPoint> {
+export async function pointFromNote(
+  viva: CaseFile,
+  request: { answers: RevisionInput; focus: RevisionFocus },
+): Promise<RevisionPoint> {
+  const { answers: input, focus: { gap, query } } = request
   const hits = await retrieve(query)
   const retrieved = summarise(hits)
 
@@ -67,19 +67,19 @@ export async function pointFromNote(viva: CaseFile, input: RevisionInput, gap: s
     .map(({ chunk }) => `<passage id="${chunk.id}" pages="${chunk.pages.join('-')}" section="${chunk.section}">\n${chunk.text}\n</passage>`)
     .join('\n')
 
-  const out = await parseStructured(
-    'Revision step',
-    PointSchema,
-    `You write one revision point for a trainee after an ophthalmology practice viva, using only the reference note passages provided.
+  const out = await parseStructured({
+    label: 'Revision step',
+    schema: PointSchema,
+    system: `You write one revision point for a trainee after an ophthalmology practice viva, using only the reference note passages provided.
 
 The expected diagnosis for this case is: ${viva.examiner_notes.diagnosis}
 Prefer passages about this condition and its management over passages about other conditions that happen to share words.
 
 If a passage directly supports a revision point about the gap: set supported=true, give its chunk_id, copy a short excerpt from it WORD FOR WORD (no paraphrase, no added or removed words, 10 to 40 words), and write the point in one or two sentences addressed to the trainee ("you").
 If no passage supports it: set supported=false and explain briefly in "reason". Do not use outside knowledge.`,
-    `${answers(input)}\n\nGap to address: ${gap}\n\nReference note passages:\n${passages}`,
-    3000,
-  )
+    content: `${answers(input)}\n\nGap to address: ${gap}\n\nReference note passages:\n${passages}`,
+    maxTokens: 3000,
+  })
 
   if (!out.supported || !out.chunk_id || !out.excerpt || !out.point) {
     return { status: 'unsupported', gap, reason: out.reason ?? 'No retrieved passage supports this point.', retrieved }

@@ -1,4 +1,4 @@
-import type { Eye, Finding, FindingsReply, RevealedFinding } from './types'
+import type { Eye, Finding, FindingsReply, FindingsRequest, RevealedFinding } from './types'
 
 export const NOT_IN_CASE = "That isn't available for this case."
 
@@ -111,9 +111,10 @@ const notInCaseSentence = (name: string) => `${name.charAt(0).toUpperCase()}${na
  * requested test the case doesn't list. Ids that aren't in the case are ignored, so a made-up id
  * can never reveal anything.
  */
-export function replyForFindings(findings: Finding[], ids: string[], notInCase: string[] = []): FindingsReply {
+export function replyForFindings(findings: Finding[], request: FindingsRequest): FindingsReply {
+  const { findingIds, notInCase = [] } = request
   const byId = new Map(findings.map((f) => [f.id, f]))
-  const matched = [...new Set(ids)]
+  const matched = [...new Set(findingIds)]
     .map((id) => byId.get(id))
     .filter((f): f is Finding => f !== undefined)
   const missing = notInCase.map(cleanTestName).filter(Boolean).map(notInCaseSentence)

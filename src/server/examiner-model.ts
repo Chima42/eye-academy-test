@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { CaseFile } from '../case/types'
-import type { Classification, ClassifyContext, ExaminerModel } from '../viva/engine'
+import { ClassificationSchema, type Classification, type ClassifyRequest, type ExaminerModel } from '../viva/engine'
 import { caseBrief, parseStructured } from './claude'
 
 /**
@@ -15,11 +15,9 @@ function findingCatalogue(viva: CaseFile): string {
 
 // `named` comes first so the model decides what was named before choosing the intent:
 // a request that names an examination is never "too_broad" ("tell me about the pressure of the eye").
-const ClassificationSchema = z.object({
+const ClassifierOutputSchema = z.object({
   named: z.array(z.string()).describe('Examinations or tests the words name, e.g. ["intraocular pressure"]; [] if none'),
-  intent: z.enum(['finding_request', 'too_broad', 'ready_to_answer', 'gives_answer', 'repeat_request', 'other']),
-  finding_ids: z.array(z.string()),
-  not_in_case: z.array(z.string()).describe('Tests they asked for that are not in the list, in their words, e.g. ["visual fields"]; [] otherwise'),
+  ...ClassificationSchema.shape,
 })
 
 function classifierSystem(viva: CaseFile): string {
@@ -48,15 +46,15 @@ Never guess. Only return an id when the words clearly name that finding.
 const ANSWER_STAGE_GUIDE = `The trainee is now answering the examiner's question, so treat what they say as their answer ("gives_answer"), including "I don't know" and answers that mention findings ("I'd lower the pressure with timolol").
 Only two exceptions: "finding_request" for an explicit request for a finding ("what's the left pressure?"), and "repeat_request" for asking to hear the question again.`
 
-export async function classify(viva: CaseFile, utterance: string, context: ClassifyContext): Promise<Classification> {
-  const { previous, stage } = context
+export async function classify(viva: CaseFile, request: ClassifyRequest): Promise<Classification> {
+  const { utterance, previous, stage } = request
   const lines = [
     stage === 'findings' ? '' : `Stage: ${stage === 'diagnosis' ? 'giving their diagnosis and management' : 'answering the follow-up question'}.\n${ANSWER_STAGE_GUIDE}`,
     previous ? `Previous request: "${previous.utterance}" (answered with: ${previous.findingIds.join(', ') || 'nothing'})` : '',
     previous || stage !== 'findings' ? `Current request: ${utterance}` : utterance,
   ]
   const content = lines.filter(Boolean).join('\n')
-  return parseStructured('Classifier', ClassificationSchema, classifierSystem(viva), content)
+  return parseStructured({ label: 'Classifier', schema: ClassifierOutputSchema, system: classifierSystem(viva), content })
 }
 
 const FollowUpSchema = z.object({
@@ -75,15 +73,15 @@ Ask exactly one follow-up question that responds to what the trainee actually sa
 }
 
 export async function writeFollowUp(viva: CaseFile, diagnosisAnswer: string): Promise<{ gap: string; question: string }> {
-  return parseStructured(
-    'Follow-up',
-    FollowUpSchema,
-    followUpSystem(viva),
-    `Trainee's answer (speech-to-text transcript):\n${diagnosisAnswer}`,
-  )
+  return parseStructured({
+    label: 'Follow-up',
+    schema: FollowUpSchema,
+    system: followUpSystem(viva),
+    content: `Trainee's answer (speech-to-text transcript):\n${diagnosisAnswer}`,
+  })
 }
 
 export const examinerModel = (viva: CaseFile): ExaminerModel => ({
-  classify: (utterance, context) => classify(viva, utterance, context),
+  classify: (request) => classify(viva, request),
   writeFollowUp: async (answer) => (await writeFollowUp(viva, answer)).question,
 })

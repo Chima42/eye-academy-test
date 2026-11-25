@@ -23,3 +23,6 @@ __unconfig*
 # Firebase emulator
 .emulator-data
 *-debug.log
+
+# Receipts for the AI cost claim: personal details, sent by email instead
+Receipt-*.pdf

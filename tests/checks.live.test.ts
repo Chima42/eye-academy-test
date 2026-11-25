@@ -14,7 +14,8 @@ import { pointFromNote, revisionPoint } from '../src/server/revision-model'
 import { runTurn } from '../src/viva/engine'
 
 const model = examinerModel(viva)
-const ask = (utterance: string) => runTurn(viva, { stage: 'findings', utterance }, model)
+const examiner = { viva, model }
+const ask = (utterance: string) => runTurn(examiner, { stage: 'findings', utterance })
 const NOT_AVAILABLE = /not available for this case|isn't available for this case/
 
 describe('Check 1: available finding', () => {
@@ -87,11 +88,11 @@ describe('Never guess (from manual testing)', () => {
 
 describe('Follow-on requests use the previous request', () => {
   it('"And what about the left eye?" after right gonioscopy -> left gonioscopy', async () => {
-    const r = await runTurn(
-      viva,
-      { stage: 'findings', utterance: 'And what about the left eye?', previous: { utterance: 'Can I see the gonioscopy on the right?', findingIds: ['gonio_right'] } },
-      model,
-    )
+    const r = await runTurn(examiner, {
+      stage: 'findings',
+      utterance: 'And what about the left eye?',
+      previous: { utterance: 'Can I see the gonioscopy on the right?', findingIds: ['gonio_right'] },
+    })
     console.log('[follow-on]', r.revealed.map((f) => f.display))
     expect(r.revealed.map((f) => f.id)).toEqual(['gonio_left'])
   })
@@ -124,7 +125,7 @@ describe('Mixed request: a finding plus a test the case does not list', () => {
 describe('Answer stages', () => {
   const FOLLOW_UP = 'Why might you treat the left eye as well?'
   const answerTurn = (stage: 'diagnosis' | 'follow_up', utterance: string) =>
-    runTurn(viva, { stage, utterance, followUpQuestion: FOLLOW_UP }, model)
+    runTurn(examiner, { stage, utterance, followUpQuestion: FOLLOW_UP })
 
   it('"Sorry, can you repeat the question?" repeats the follow-up and does not end the viva', async () => {
     const r = await answerTurn('follow_up', 'Sorry, can you repeat the question?')
@@ -151,7 +152,7 @@ describe('Answer stages', () => {
 describe('Speech-to-text', () => {
   it('"OCT" said on its own is transcribed as OCT, not "October", and reveals the OCT finding', async () => {
     const { response } = await speak('O. C. T.')
-    const { transcript } = await transcribe(await response.arrayBuffer(), 'audio/mpeg', keyterms(viva))
+    const { transcript } = await transcribe({ audio: await response.arrayBuffer(), contentType: 'audio/mpeg' }, keyterms(viva))
     console.log('[stt oct] transcript:', transcript)
     expect(transcript).toMatch(/\bOCT\b/i)
     expect(transcript).not.toMatch(/october/i)
@@ -191,12 +192,13 @@ describe('Check 3: the citation supports the revision point', () => {
   })
 
   it('says so when the note has no support (a gap the note does not cover)', async () => {
-    const r = await pointFromNote(
-      viva,
-      input,
-      'Long-term control of her systemic hypertension',
-      'Choosing an antihypertensive drug and blood pressure target for a patient on amlodipine',
-    )
+    const r = await pointFromNote(viva, {
+      answers: input,
+      focus: {
+        gap: 'Long-term control of her systemic hypertension',
+        query: 'Choosing an antihypertensive drug and blood pressure target for a patient on amlodipine',
+      },
+    })
     console.log('[check 3b]', JSON.stringify({ status: r.status, reason: 'reason' in r ? r.reason : undefined, retrieved: r.retrieved.map((p) => p.chunkId) }))
     expect(r.status).toBe('unsupported')
   })

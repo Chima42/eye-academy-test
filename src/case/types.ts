@@ -43,6 +43,11 @@ export interface RevealedFinding {
   display: string
 }
 
+export interface FindingsRequest {
+  findingIds: string[]
+  notInCase?: string[]
+}
+
 export interface FindingsReply {
   revealed: RevealedFinding[]
   spoken: string

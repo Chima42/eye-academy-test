@@ -125,7 +125,7 @@ describe('every bare measurement speaks its unit', () => {
 
 describe('replyForFindings', () => {
   it('returns both eyes when asked for both', () => {
-    const reply = replyForFindings(viva.findings, ['iop_right', 'iop_left'])
+    const reply = replyForFindings(viva.findings, { findingIds: ['iop_right', 'iop_left'] })
     expect(reply.revealed.map((r) => r.id)).toEqual(['iop_right', 'iop_left'])
     expect(reply.spoken).toBe(
       'Right eye, intraocular pressure: 58 millimetres of mercury. Left eye, intraocular pressure: 18 millimetres of mercury.',
@@ -133,25 +133,25 @@ describe('replyForFindings', () => {
   })
 
   it('says "not available for this case" when nothing matched', () => {
-    expect(replyForFindings(viva.findings, [])).toEqual({ revealed: [], spoken: NOT_IN_CASE })
+    expect(replyForFindings(viva.findings, { findingIds: [] })).toEqual({ revealed: [], spoken: NOT_IN_CASE })
   })
 
   it('names a requested test the case does not list, alongside the findings', () => {
-    const reply = replyForFindings(viva.findings, ['iop_right'], ['visual fields'])
+    const reply = replyForFindings(viva.findings, { findingIds: ['iop_right'], notInCase: ['visual fields'] })
     expect(reply.spoken).toBe('Right eye, intraocular pressure: 58 millimetres of mercury. Visual fields: not available for this case.')
   })
 
   it('strips anything but plain words from a test name before speaking it', () => {
-    expect(replyForFindings(viva.findings, [], ['<visual fields>!']).spoken).toBe('Visual fields: not available for this case.')
+    expect(replyForFindings(viva.findings, { findingIds: [], notInCase: ['<visual fields>!'] }).spoken).toBe('Visual fields: not available for this case.')
   })
 
   it('ignores ids that are not in the case', () => {
-    const reply = replyForFindings(viva.findings, ['visual_fields', 'iop_right'])
+    const reply = replyForFindings(viva.findings, { findingIds: ['visual_fields', 'iop_right'] })
     expect(reply.revealed.map((r) => r.id)).toEqual(['iop_right'])
   })
 
   it('snapshots what was shown', () => {
-    const [r] = replyForFindings(viva.findings, ['gonio_right']).revealed
+    const [r] = replyForFindings(viva.findings, { findingIds: ['gonio_right'] }).revealed
     expect(r).toEqual({
       id: 'gonio_right',
       eye: 'right',

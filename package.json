@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test:checks": "vitest run --mode checks",
     "prepare:note": "tsx scripts/prepare-note.ts",
-    "app": "vite dev --port 3000",
+    "app": "vite dev",
     "check:privacy": "sh scripts/check-privacy.sh"
   },
   "dependencies": {
@@ -26,6 +26,7 @@
     "@tanstack/react-router-devtools": "1.167.4",
     "@tanstack/react-start": "1.169.7",
     "firebase": "^13.4.0",
+    "firebase-admin": "^13.10.0",
     "pdfjs-dist": "^5.6.205",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

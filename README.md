@@ -10,6 +10,7 @@ cited from the glaucoma reference note.
 - [Three repeatable checks](#three-repeatable-checks) (full results in [CHECKS.md](CHECKS.md))
 - [Handover](#handover)
 - [One improvement](#one-improvement-hands-free-turn-taking)
+- [AI API costs](#ai-api-costs)
 
 ## Run it
 
@@ -21,7 +22,8 @@ cp .env.example .env.local      # then add DEEPGRAM_API_KEY and ANTHROPIC_API_KE
 npm run dev                     # Firebase Auth + Firestore emulators and the app
 ```
 
-Open the URL Vite prints (usually http://localhost:3000). Create an account: accounts only exist in the local
+Open http://localhost:3000. Every port is fixed (app 3000, Emulator UI 4000, Firestore 8080, Auth 9099, plus 4400, 4500
+and 9150 for the emulators): if one is taken, `npm run dev` names the process using it and stops. Create an account: accounts only exist in the local
 Auth emulator. The Emulator UI is at http://localhost:4000. Data persists between runs in `.emulator-data/`.
 
 The emulators need Java 21. `npm run dev` uses `JAVA_HOME` if it is set. Otherwise it looks for a JDK 21+
@@ -36,14 +38,15 @@ Data is saved to `.emulator-data/` when you stop with **Ctrl+C**. If the process
 
 | Command | Purpose |
 |---|---|
-| `npm test` | Offline unit tests (77) |
-| `npm run test:checks` | The three checks, plus regressions found in manual testing, against the real model (22) |
-| `npm run check:privacy` | Two-user Firestore rules check (with `npm run dev` running) |
+| `npm test` | Offline unit tests (98) |
+| `npm run test:checks` | The three checks, plus regressions found in manual testing, against the real models (23) |
+| `npm run check:privacy` | Two-user Firestore rules check, and the API routes refusing requests without a valid token (with `npm run dev` running) |
 | `npm run prepare:note` | Rebuild `data/note-chunks.json` from the PDF |
 
 ## What works and where I stopped
 
-Built in about 3 hours over one session, not counting reading the brief and planning beforehand.
+Built in about 4¼ hours over two sessions: about 3 hours on the first day, then about 1¼ hours the next morning on fixes
+from testing and code review (speech-to-text formatting, server-side auth, refactoring). Not counting reading the brief and planning beforehand.
 
 **Works**
 - Sign in, start a viva, hear the opening prompt.
@@ -70,14 +73,16 @@ Built in about 3 hours over one session, not counting reading the brief and plan
   to their owner. Another user's attempt URL shows "Attempt not found". A load failure (e.g. emulators not running) says so instead.
   The attempts list separates in-progress vivas (with Continue) from completed ones, which show what to revise and
   can expand the full revision point in place.
+- **Signed-in requests only.** Every route that spends API credit (`/api/transcribe`, `/api/speak`, and the examiner
+  and revision server functions) needs the user's Firebase ID token. The server verifies it with the Admin SDK (against the
+  Auth emulator locally) and returns 401 without a valid one. Recordings over about 2 MB are refused.
 - **Revision point.** After the viva, one revision point with a page number and a word-for-word excerpt
   from the reference note, or a clear "no support found".
 - **Recovery.** A text box takes the place of voice (noisy room, no mic). An empty transcript gets "Sorry, I didn't
   catch that" and doesn't count as a turn. API errors show a message without losing the attempt. "Repeat last" replays the examiner.
 
 **Where I stopped / known gaps**
-- The server routes (`/api/transcribe`, `/api/speak`, server functions) don't verify the Firebase ID token.
-  That's acceptable for a local demo, but a deployed version must, because they spend API credit.
+- Any signed-in account can spend API credit: there's no per-user rate limit or quota. A deployed version would add one.
 - A turn is saved when the examiner's reply arrives. Refreshing while the examiner is thinking loses that one
   turn. Two tabs on the same attempt overwrite each other (last write wins).
 - Speech-to-text still mishears some drug names despite keyterms ("apraclonidine" → "apradunavol", "acetazolamide" → "acetazolol"),
@@ -277,3 +282,9 @@ because it's about how the product is actually used, and the core flow is alread
 
 **Measure it with** the same timer (end of speech → examiner audio). It should add the silence threshold
 (about 0.7s) to each turn. That's the cost of going hands-free, and worth stating to users.
+
+## AI API costs
+
+Anthropic API credit bought for this build: **$6.00** ($5.00 of credit plus $1.00 UK VAT), paid 24 November 2026.
+The receipt (number 2664-7535-2166) is attached to the submission email, not kept in the repo, because it has personal
+details on it. This is within the £10 limit.
