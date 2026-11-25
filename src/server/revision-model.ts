@@ -76,7 +76,12 @@ The expected diagnosis for this case is: ${viva.examiner_notes.diagnosis}
 Prefer passages about this condition and its management over passages about other conditions that happen to share words.
 
 If a passage directly supports a revision point about the gap: set supported=true, give its chunk_id, copy a short excerpt from it WORD FOR WORD (no paraphrase, no added or removed words, 10 to 40 words), and write the point in one or two sentences addressed to the trainee ("you").
-If no passage supports it: set supported=false and explain briefly in "reason". Do not use outside knowledge.`,
+If no passage supports it: set supported=false and explain briefly in "reason". Do not use outside knowledge.
+
+The point corrects a knowledge gap, so it must be accurate about the trainee:
+- Refer only to what the trainee actually said in their answers above. Never say they found, noted, examined or considered something they didn't mention.
+- Don't praise any part of the answer that was wrong or incomplete ("you were right that the left eye is fine" when it isn't teaches the opposite of the point). Lead with the correction, not with praise.
+- Facts about the patient belong to the patient, not the trainee: write "her left angle is narrow", not "your left angle" or "you found a narrow angle".`,
     content: `${answers(input)}\n\nGap to address: ${gap}\n\nReference note passages:\n${passages}`,
     maxTokens: 3000,
   })

@@ -128,7 +128,9 @@ Deliberately trying to break it, and a code review against the brief, found thes
 | "Sorry, can you repeat the question?" during the follow-up | Taken as the answer: the viva ended | Repeats the follow-up |
 | "What's the pressure in the left eye?" after "Give my diagnosis" | Taken as the diagnosis | Answered; still waiting for the diagnosis |
 | "OCT", said on its own | Transcribed as "October" (Deepgram's `smart_format` formats dates), so the examiner asked again | Transcribed as "OCT"; the OCT finding is read out. `smart_format` replaced by `punctuate`, which also stops "six thirty-six" becoming "636" |
+| Revision point after "I wouldn't treat the left eye" | 4 in 10 points misstated the answer: "You were right that the left eye is fine", "you found a narrow angle" (never asked for), "your left angle" | Refers only to what the trainee said, no praise for a wrong answer, patient facts as hers ("her left angle is narrow"). 20/20 accurate in a probe; now a live check |
 
 Final live runs: 22/22 checks passed three runs in a row. With the speech round-trip check added since, 23/23 pass.
 After the refactor (server-side auth, smaller function signatures, `useViva` split), 23/23 pass again.
+With the revision-point accuracy check added, 24/24 pass.
 The examiner server function was also called directly: 401 without a token or with a forged one, 200 when signed in.
