@@ -9,13 +9,17 @@ export const MODEL = 'claude-haiku-5-5'
 let client: Anthropic | null = null
 const anthropic = () => (client ??= new Anthropic())
 
-export async function parseStructured<S extends z.ZodObject>(
-  label: string,
-  schema: S,
-  system: string,
-  content: string,
-  maxTokens = 2000,
-): Promise<z.infer<S>> {
+export interface StructuredRequest<S extends z.ZodObject> {
+  /** Names the step in the error if the model returns nothing. */
+  label: string
+  schema: S
+  system: string
+  content: string
+  maxTokens?: number
+}
+
+export async function parseStructured<S extends z.ZodObject>(request: StructuredRequest<S>): Promise<z.infer<S>> {
+  const { label, schema, system, content, maxTokens = 2000 } = request
   const response = await anthropic().messages.parse({
     model: MODEL,
     max_tokens: maxTokens,

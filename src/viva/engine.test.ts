@@ -14,7 +14,7 @@ function modelThatClassifies(intent: Intent, findingIds: string[] = [], notInCas
 }
 
 const turn = (stage: Stage, utterance: string, model: ExaminerModel) =>
-  runTurn(viva, { stage, utterance, followUpQuestion: FOLLOW_UP }, model)
+  runTurn({ viva, model }, { stage, utterance, followUpQuestion: FOLLOW_UP })
 
 describe('findings stage', () => {
   it('builds the reply from the case, not the model', async () => {

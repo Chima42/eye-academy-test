@@ -82,11 +82,13 @@ function toLines(items: TextItem[]): Line[] {
     })
 }
 
-function pageBlocks(page: number, lines: Line[], state: { heading: string; subheading: string; started: boolean }): Block[] {
-  const blocks: Block[] = []
+/** Split each page into blocks (paragraphs, bullets and table rows), tagged with their section. */
+function pageBlocks(pages: Line[][]): Block[][] {
+  const state = { heading: '', subheading: '', started: false }
   const section = () => (state.subheading ? `${state.heading} > ${state.subheading}` : state.heading)
+  let blocks: Block[] = []
+  let page = 0
   let paragraph: string[] = []
-  let previousY = Infinity
   let table: { columns: { name: string; x: number }[]; rows: Line[][] } | null = null
 
   const flushParagraph = () => {
@@ -107,44 +109,48 @@ function pageBlocks(page: number, lines: Line[], state: { heading: string; subhe
     table = null
   }
 
-  for (const line of lines) {
-    const gap = previousY - line.y
-    previousY = line.y
-    if (isSectionHeading(line.size)) {
-      flushParagraph(); flushTable()
-      state.heading = line.text; state.subheading = ''; state.started = true
-      continue
+  return pages.map((lines, index) => {
+    blocks = []
+    page = index + 1
+    let previousY = Infinity
+    for (const line of lines) {
+      const gap = previousY - line.y
+      previousY = line.y
+      if (isSectionHeading(line.size)) {
+        flushParagraph(); flushTable()
+        state.heading = line.text; state.subheading = ''; state.started = true
+        continue
+      }
+      if (!state.started) continue // title and tag pills before the first section
+      if (isSubheading(line.size)) {
+        flushParagraph(); flushTable()
+        state.subheading = line.text
+        continue
+      }
+      if (isTableHeader(line.size)) {
+        flushParagraph(); flushTable()
+        table = { columns: line.items.map((item) => ({ name: item.str.trim(), x: item.x })), rows: [] }
+        continue
+      }
+      if (isTableCell(line.size) && table) {
+        if (table.rows.length === 0 || gap > 20) table.rows.push([line])
+        else table.rows[table.rows.length - 1].push(line)
+        continue
+      }
+      flushTable()
+      // Body text: ~16.5pt between wrapped lines, ~19pt between bullets, ~25pt between paragraphs.
+      if (gap > 17.8) flushParagraph()
+      paragraph.push(line.text)
     }
-    if (!state.started) continue // title and tag pills before the first section
-    if (isSubheading(line.size)) {
-      flushParagraph(); flushTable()
-      state.subheading = line.text
-      continue
-    }
-    if (isTableHeader(line.size)) {
-      flushParagraph(); flushTable()
-      table = { columns: line.items.map((item) => ({ name: item.str.trim(), x: item.x })), rows: [] }
-      continue
-    }
-    if (isTableCell(line.size) && table) {
-      if (table.rows.length === 0 || gap > 20) table.rows.push([line])
-      else table.rows[table.rows.length - 1].push(line)
-      continue
-    }
-    flushTable()
-    // Body text: ~16.5pt between wrapped lines, ~19pt between bullets, ~25pt between paragraphs.
-    if (gap > 17.8) flushParagraph()
-    paragraph.push(line.text)
-  }
-  flushParagraph(); flushTable()
-  return blocks
+    flushParagraph(); flushTable()
+    return blocks
+  })
 }
 
 const endsSentence = (text: string) => /[.?!:)]$/.test(text.trim())
 
 export function chunkNote(pages: TextItem[][]): Chunk[] {
-  const state = { heading: '', subheading: '', started: false }
-  const perPage = pages.map((items, index) => pageBlocks(index + 1, toLines(items), state))
+  const perPage = pageBlocks(pages.map(toLines))
 
   // Flatten, merging a paragraph that runs over a page break into one chunk with two page spans.
   const merged: { section: string; kind: Block['kind']; text: string; spans: PageSpan[] }[] = []

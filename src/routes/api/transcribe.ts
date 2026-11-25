@@ -10,7 +10,7 @@ export const Route = createFileRoute('/api/transcribe')({
           const audio = await request.arrayBuffer()
           if (audio.byteLength === 0) return Response.json({ transcript: '' })
           const contentType = request.headers.get('content-type') ?? 'audio/webm'
-          const { transcript, ms } = await transcribe(audio, contentType, keyterms(viva))
+          const { transcript, ms } = await transcribe({ audio, contentType }, keyterms(viva))
           return Response.json({ transcript }, { headers: { 'Server-Timing': `stt;dur=${ms.toFixed(0)}` } })
         } catch (err) {
           console.error(err)

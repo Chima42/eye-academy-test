@@ -1,40 +1,48 @@
+import { z } from 'zod'
 import { replyForFindings } from '../case/format'
 import type { CaseFile, RevealedFinding } from '../case/types'
 
-export type Stage = 'findings' | 'diagnosis' | 'follow_up' | 'complete'
+export const StageSchema = z.enum(['findings', 'diagnosis', 'follow_up', 'complete'])
+export type Stage = z.infer<typeof StageSchema>
 
-export type Intent = 'finding_request' | 'too_broad' | 'ready_to_answer' | 'gives_answer' | 'repeat_request' | 'other'
+export const IntentSchema = z.enum(['finding_request', 'too_broad', 'ready_to_answer', 'gives_answer', 'repeat_request', 'other'])
+export type Intent = z.infer<typeof IntentSchema>
 
-export interface Classification {
-  intent: Intent
-  finding_ids: string[]
-  not_in_case: string[]
-}
+export const ClassificationSchema = z.object({
+  intent: IntentSchema,
+  finding_ids: z.array(z.string()),
+  not_in_case: z.array(z.string()).describe('Tests they asked for that are not in the list, in their words, e.g. ["visual fields"]; [] otherwise'),
+})
+export type Classification = z.infer<typeof ClassificationSchema>
 
 /** The trainee's previous findings request, so "what about the left eye?" can be understood. */
-export interface PreviousRequest {
-  utterance: string
-  findingIds: string[]
-}
+export const PreviousRequestSchema = z.object({
+  utterance: z.string().max(4000),
+  findingIds: z.array(z.string()).max(30),
+})
+export type PreviousRequest = z.infer<typeof PreviousRequestSchema>
 
-export interface ClassifyContext {
-  stage: Stage
-  previous?: PreviousRequest
-}
+export const TurnInputSchema = z.object({
+  stage: StageSchema,
+  utterance: z.string().max(4000),
+  diagnosisAnswer: z.string().max(4000).optional(),
+  /** The follow-up already asked, so it can be repeated on request. */
+  followUpQuestion: z.string().max(1000).optional(),
+  previous: PreviousRequestSchema.optional(),
+})
+export type TurnInput = z.infer<typeof TurnInputSchema>
+
+export type ClassifyRequest = Pick<TurnInput, 'utterance' | 'stage' | 'previous'>
 
 /** The LLM calls the engine needs. Injected so tests can use fakes or the real model. */
 export interface ExaminerModel {
-  classify(utterance: string, context: ClassifyContext): Promise<Classification>
+  classify(request: ClassifyRequest): Promise<Classification>
   writeFollowUp(diagnosisAnswer: string): Promise<string>
 }
 
-export interface TurnInput {
-  stage: Stage
-  utterance: string
-  diagnosisAnswer?: string
-  /** The follow-up already asked, so it can be repeated on request. */
-  followUpQuestion?: string
-  previous?: PreviousRequest
+export interface Examiner {
+  viva: CaseFile
+  model: ExaminerModel
 }
 
 export interface TurnResult {
@@ -59,57 +67,45 @@ function isTooShortToCount(utterance: string): boolean {
   return utterance.replace(/[^\p{L}\p{N}]/gu, '').length < 2
 }
 
-export async function runTurn(viva: CaseFile, input: TurnInput, model: ExaminerModel): Promise<TurnResult> {
+const say = (spoken: string, nextStage: Stage): TurnResult => ({ spoken, revealed: [], nextStage, counted: true })
+
+export async function runTurn(examiner: Examiner, input: TurnInput): Promise<TurnResult> {
   const { stage, utterance } = input
-  if (isTooShortToCount(utterance)) {
-    return { spoken: PROMPTS.didntCatch, revealed: [], nextStage: stage, counted: false }
-  }
-  if (stage === 'complete') {
-    return { spoken: PROMPTS.closing, revealed: [], nextStage: 'complete', counted: false }
-  }
+  if (isTooShortToCount(utterance)) return { ...say(PROMPTS.didntCatch, stage), counted: false }
+  if (stage === 'complete') return { ...say(PROMPTS.closing, 'complete'), counted: false }
 
-  const classification = await model.classify(utterance, { stage, previous: input.previous })
+  const classification = await examiner.model.classify({ utterance, stage, previous: input.previous })
   const { intent } = classification
-  const stay = (spoken: string): TurnResult => ({ spoken, revealed: [], nextStage: stage, counted: true })
+  const findingsReply = (): TurnResult => ({ ...replyFromCase(examiner.viva, classification), nextStage: stage, counted: true })
 
-  if (intent === 'finding_request') return findingsReply(viva, classification, stage)
+  if (intent === 'finding_request') return findingsReply()
 
   if (stage === 'findings') {
-    if (intent === 'ready_to_answer') {
-      return { spoken: PROMPTS.askForAnswer, revealed: [], nextStage: 'diagnosis', counted: true }
-    }
+    if (intent === 'ready_to_answer') return say(PROMPTS.askForAnswer, 'diagnosis')
     // They gave the diagnosis without announcing it first: take it as their answer, don't ask again.
-    if (intent === 'gives_answer') return answerDiagnosis(utterance, model)
+    if (intent === 'gives_answer') return answerDiagnosis(examiner.model, utterance)
     // "Is there anything wrong with the left eye?" would reveal the whole examination at once;
     // asking for findings one by one is the skill being tested, so ask which examination.
-    if (intent === 'too_broad') return stay(PROMPTS.tooBroad)
-    if (classification.finding_ids.length > 0) return findingsReply(viva, classification, stage)
-    return stay(PROMPTS.steer)
+    if (intent === 'too_broad') return say(PROMPTS.tooBroad, stage)
+    if (classification.finding_ids.length > 0) return findingsReply()
+    return say(PROMPTS.steer, stage)
   }
 
   // Answer stages: "can you repeat the question?" is not an answer.
   if (stage === 'diagnosis') {
-    if (intent === 'repeat_request') return stay(PROMPTS.askForAnswer)
-    return answerDiagnosis(utterance, model)
+    if (intent === 'repeat_request') return say(PROMPTS.askForAnswer, stage)
+    return answerDiagnosis(examiner.model, utterance)
   }
-  if (intent === 'repeat_request') return stay(input.followUpQuestion ?? PROMPTS.askForAnswer)
-  return { spoken: PROMPTS.closing, revealed: [], nextStage: 'complete', counted: true }
+  if (intent === 'repeat_request') return say(input.followUpQuestion ?? PROMPTS.askForAnswer, stage)
+  return say(PROMPTS.closing, 'complete')
 }
 
 /** Code, not the model, builds the reply from the case JSON. */
-function findingsReply(viva: CaseFile, classification: Classification, stage: Stage): TurnResult {
-  const reply = replyForFindings(viva.findings, classification.finding_ids, classification.not_in_case)
-  return { spoken: reply.spoken, revealed: reply.revealed, nextStage: stage, counted: true }
+function replyFromCase(viva: CaseFile, classification: Classification) {
+  return replyForFindings(viva.findings, { findingIds: classification.finding_ids, notInCase: classification.not_in_case })
 }
 
-async function answerDiagnosis(utterance: string, model: ExaminerModel): Promise<TurnResult> {
+async function answerDiagnosis(model: ExaminerModel, utterance: string): Promise<TurnResult> {
   const question = await model.writeFollowUp(utterance)
-  return {
-    spoken: question,
-    revealed: [],
-    nextStage: 'follow_up',
-    counted: true,
-    followUpQuestion: question,
-    diagnosisAnswer: utterance,
-  }
+  return { ...say(question, 'follow_up'), followUpQuestion: question, diagnosisAnswer: utterance }
 }

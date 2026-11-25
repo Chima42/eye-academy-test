@@ -1,5 +1,14 @@
+import { z } from 'zod'
 import type { RevealedFinding } from '../case/types'
 import type { Stage } from './engine'
+
+/** The trainee's answers the revision point is based on. */
+export const RevisionInputSchema = z.object({
+  diagnosisAnswer: z.string().max(4000),
+  followUpQuestion: z.string().max(1000).optional(),
+  followUpAnswer: z.string().max(4000),
+})
+export type RevisionInput = z.infer<typeof RevisionInputSchema>
 
 export interface TranscriptEntry {
   role: 'examiner' | 'trainee'
