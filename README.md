@@ -10,6 +10,7 @@ cited from the glaucoma reference note.
 - [Three repeatable checks](#three-repeatable-checks) (full results in [CHECKS.md](CHECKS.md))
 - [Handover](#handover)
 - [One improvement](#one-improvement-hands-free-turn-taking)
+- [AI API costs](#ai-api-costs)
 
 ## Run it
 
@@ -281,3 +282,9 @@ because it's about how the product is actually used, and the core flow is alread
 
 **Measure it with** the same timer (end of speech → examiner audio). It should add the silence threshold
 (about 0.7s) to each turn. That's the cost of going hands-free, and worth stating to users.
+
+## AI API costs
+
+Anthropic API credit bought for this build: **$6.00** ($5.00 of credit plus $1.00 UK VAT), paid 24 November 2026.
+The receipt (number 2664-7535-2166) is attached to the submission email, not kept in the repo, because it has personal
+details on it. This is within the £10 limit.
