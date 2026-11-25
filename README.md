@@ -39,7 +39,7 @@ Data is saved to `.emulator-data/` when you stop with **Ctrl+C**. If the process
 | Command | Purpose |
 |---|---|
 | `npm test` | Offline unit tests (98) |
-| `npm run test:checks` | The three checks, plus regressions found in manual testing, against the real models (23) |
+| `npm run test:checks` | The three checks, plus regressions found in manual testing, against the real models (24) |
 | `npm run check:privacy` | Two-user Firestore rules check, and the API routes refusing requests without a valid token (with `npm run dev` running) |
 | `npm run prepare:note` | Rebuild `data/note-chunks.json` from the PDF |
 

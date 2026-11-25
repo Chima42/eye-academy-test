@@ -191,6 +191,15 @@ describe('Check 3: the citation supports the revision point', () => {
     expect(r.page).toBe(r.pages?.[0])
   })
 
+  // Seen in testing: "You were right that the left eye is fine", and "you found a narrow angle" when the
+  // trainee never asked about the left angle. A revision point that misstates the answer teaches the wrong thing.
+  it('describes only what the trainee said: no praise for the wrong answer, no findings they did not make', async () => {
+    const r = await revisionPoint(viva, input)
+    const text = r.status === 'supported' ? r.point : r.reason
+    console.log('[check 3c]', text)
+    expect(text).not.toMatch(/\byou were right\b|\byou (found|noted|identified|observed|examined|confirmed)\b|\byour (left|right|fellow) (eye|angle)\b/i)
+  })
+
   it('says so when the note has no support (a gap the note does not cover)', async () => {
     const r = await pointFromNote(viva, {
       answers: input,
